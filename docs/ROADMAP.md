@@ -53,7 +53,7 @@ Secrets: .env (never in Git)
 
 ---
 
-### Phase 0 — Pre-Flight
+### ✅ Phase 0 — Pre-Flight
 > **~1–2 дні | P0**
 
 **Мета:** Зафіксувати рішення та підготувати репо до деплою.
@@ -67,32 +67,32 @@ Secrets: .env (never in Git)
 
 **DoD:** ADRs написані, структура репо готова, label schema зафіксована, `.env.example` є.
 
-**Артефакти:** структура в корені репо (`docker-compose.monitoring.yml`, `victoria-metrics/`, `grafana/`, `alerting/`, `exporters/`), `docs/adr/ADR-001..003.md`, `docs/architecture/ports-map.md`
+**Артефакти:** структура в корені репо (`docker-compose.yml`, `victoria-metrics/`, `grafana/`, `alerting/`, `exporters/`), `docs/adr/ADR-001..003.md`, `docs/architecture/ports-map.md`
 
 ---
 
-### Phase 1 — Core Stack Deployment
+### ✅ Phase 1 — Core Stack Deployment
 > **~2–3 дні | P0**
 
 **Мета:** VictoriaMetrics + Grafana запущені, захищені та інтегровані у CD pipeline.
 
 **Задачі:**
-- [ ] `docker-compose.monitoring.yml` з VictoriaMetrics та Grafana (порти тільки `127.0.0.1:PORT`)
-- [ ] Retention = 90 днів, VM volume ≥20 GB
-- [ ] Grafana: datasource VictoriaMetrics через provisioning YAML
-- [ ] Grafana: `GF_AUTH_ANONYMOUS_ENABLED=false`, admin пароль з `.env`
-- [ ] Cloudflare Tunnel для Grafana + Cloudflare Access policy (MS Entra ID SSO)
-- [ ] Базовий scrape-config: VictoriaMetrics self + Node Exporter
-- [ ] Додати деплой monitoring stack до існуючого CD pipeline
+- [x] `docker-compose.yml` з VictoriaMetrics та Grafana (порти тільки `127.0.0.1:PORT`)
+- [x] Retention = 90 днів, VM volume ≥20 GB
+- [x] Grafana: datasource VictoriaMetrics через provisioning YAML
+- [x] Grafana: `GF_AUTH_ANONYMOUS_ENABLED=false`, admin пароль з `.env`
+- [ ] Cloudflare Tunnel для Grafana + Cloudflare Access policy (MS Entra ID SSO) (ігноруємо до відміни)
+- [x] Базовий scrape-config: VictoriaMetrics self + Node Exporter
+- [x] Додати деплой monitoring stack до існуючого CD pipeline (GitHub Actions + Tailscale Ephemeral Auth Key)
 
 **DoD:**
-- [ ] `/health` VictoriaMetrics → 200
-- [ ] Grafana доступна тільки через Cloudflare Tunnel з аутентифікацією
-- [ ] `curl EXTERNAL_IP:8428` → timeout (не публічний)
-- [ ] Node Exporter метрики видно в Grafana Explore
-- [ ] CD pipeline деплоїть stack автоматично
+- [x] `/health` VictoriaMetrics → 200
+- [ ] Grafana доступна тільки через Cloudflare Tunnel з аутентифікацією (ігноруємо до відміни)
+- [ ] `curl EXTERNAL_IP:8428` → timeout (не публічний) (ігноруємо до відміни)
+- [x] Node Exporter метрики видно в Grafana Explore
+- [x] CD pipeline деплоїть stack автоматично (за наявності deploy secrets і Tailscale доступу)
 
-**Артефакти:** `docker-compose.monitoring.yml`, `scrape-config.yml` (базовий), `grafana/provisioning/datasources/`, `docs/deployment/monitoring-stack-deploy.md`
+**Артефакти:** `docker-compose.yml`, `scrape-config.yml` (базовий), `grafana/provisioning/datasources/`, `docs/deployment/monitoring-stack-deploy.md`
 
 ---
 

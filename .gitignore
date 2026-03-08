@@ -9,6 +9,8 @@ archive/
 *.log
 logs/
 **/logs/
+.data/
+archive/
 
 # Python cache/bytecode
 __pycache__/

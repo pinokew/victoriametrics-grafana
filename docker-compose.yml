@@ -1,0 +1,66 @@
+services:
+  victoriametrics:
+    image: ${VICTORIAMETRICS_IMAGE}
+    container_name: victoriametrics
+    restart: unless-stopped
+    mem_limit: ${VM_MEMORY_LIMIT}
+    memswap_limit: ${VM_MEMORY_SWAP_LIMIT}
+    env_file:
+      - .env
+    command:
+      - --storageDataPath=/storage
+      - --retentionPeriod=${VM_RETENTION_PERIOD}
+      - --promscrape.config=/etc/vm/${VM_SCRAPE_CONFIG_FILE}
+      - --httpListenAddr=:${VM_INTERNAL_PORT}
+    ports:
+      - "${MONITORING_BIND_IP}:${VM_HOST_PORT}:${VM_INTERNAL_PORT}"
+    volumes:
+      - ${VM_DATA_DIR}:/storage
+      - ${VM_SCRAPE_CONFIG_PATH}:/etc/vm/${VM_SCRAPE_CONFIG_FILE}:ro
+    networks:
+      - monitoring_net
+
+  node-exporter:
+    image: ${NODE_EXPORTER_IMAGE}
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: "host"
+    command:
+      - --path.rootfs=/host
+      - --web.listen-address=:${NODE_EXPORTER_INTERNAL_PORT}
+    ports:
+      - "${MONITORING_BIND_IP}:${NODE_EXPORTER_HOST_PORT}:${NODE_EXPORTER_INTERNAL_PORT}"
+    volumes:
+      - ${HOST_ROOTFS_PATH}:/host:ro,rslave
+      - ${HOST_UDEV_PATH}:/run/udev:ro
+    networks:
+      - monitoring_net
+
+  grafana:
+    image: ${GRAFANA_IMAGE}
+    container_name: grafana
+    user: "${GRAFANA_CONTAINER_USER}"
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      VM_DATASOURCE_URL: ${VM_DATASOURCE_URL}
+    depends_on:
+      - victoriametrics
+    ports:
+      - "${MONITORING_BIND_IP}:${GRAFANA_HOST_PORT}:${GRAFANA_INTERNAL_PORT}"
+    volumes:
+      - ${GRAFANA_DATA_DIR}:/var/lib/grafana
+      - ${GRAFANA_LOGS_DIR}:/var/log/grafana
+      - ${GRAFANA_PROVISIONING_DIR}:/etc/grafana/provisioning:ro
+      - ${GRAFANA_DASHBOARDS_DIR}:/var/lib/grafana/dashboards:ro
+    networks:
+      - monitoring_net
+
+networks:
+  monitoring_net:
+    name: ${MONITORING_NETWORK_NAME}
+    driver: bridge

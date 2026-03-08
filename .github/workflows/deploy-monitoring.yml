@@ -1,0 +1,127 @@
+name: Monitoring CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*.*.*"
+    paths:
+      - docker-compose.yml
+      - .env.example
+      - victoria-metrics/**
+      - grafana/**
+      - alerting/**
+      - docs/deployment/monitoring-stack-deploy.md
+      - .github/workflows/deploy-monitoring.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monitoring-cd-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DEPLOY_BRANCH: main
+  DEPLOY_COMPOSE_FILE: docker-compose.yml
+
+jobs:
+  cd-deploy:
+    name: cd-deploy
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DEPLOY_FULL_REF: ${{ github.ref }}
+      DEPLOY_REF: ${{ github.ref_name }}
+      DEPLOY_PROJECT_DIR: ${{ secrets.DEPLOY_PROJECT_DIR }}
+      TAILSCALE_EPHEMERAL_AUTH_KEY: ${{ secrets.TAILSCALE_EPHEMERAL_AUTH_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Validate deploy secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -n "${{ secrets.SERVER_HOST }}" ] || { echo "Missing secret: SERVER_HOST"; exit 1; }
+          [ -n "${{ secrets.SERVER_USER }}" ] || { echo "Missing secret: SERVER_USER"; exit 1; }
+          [ -n "${{ secrets.SERVER_SSH_KEY }}" ] || { echo "Missing secret: SERVER_SSH_KEY"; exit 1; }
+          [ -n "${{ secrets.DEPLOY_PROJECT_DIR }}" ] || { echo "Missing secret: DEPLOY_PROJECT_DIR"; exit 1; }
+          [ -n "${{ secrets.TAILSCALE_EPHEMERAL_AUTH_KEY }}" ] || { echo "Missing secret: TAILSCALE_EPHEMERAL_AUTH_KEY"; exit 1; }
+
+      - name: Validate SemVer tag for production
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "Tag must follow SemVer: vMAJOR.MINOR.PATCH"
+            exit 1
+          }
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ env.TAILSCALE_EPHEMERAL_AUTH_KEY }}
+
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          envs: DEPLOY_FULL_REF,DEPLOY_REF,DEPLOY_PROJECT_DIR,DEPLOY_BRANCH,DEPLOY_COMPOSE_FILE
+          script: |
+            set -euo pipefail
+
+            echo "Starting monitoring deployment for ${DEPLOY_REF} (${DEPLOY_FULL_REF})"
+            cd "${DEPLOY_PROJECT_DIR}"
+
+            if [ ! -f .env ]; then
+              echo "ERROR: .env not found in ${DEPLOY_PROJECT_DIR}."
+              exit 1
+            fi
+
+            git fetch --prune --tags origin
+
+            case "${DEPLOY_FULL_REF}" in
+              refs/tags/*)
+                echo "Deploying tag: ${DEPLOY_REF}"
+                git checkout -f "${DEPLOY_REF}"
+                ;;
+              *)
+                echo "Deploying branch: ${DEPLOY_BRANCH}"
+                git checkout -f "${DEPLOY_BRANCH}"
+                git reset --hard "origin/${DEPLOY_BRANCH}"
+                ;;
+            esac
+
+            docker compose -f "${DEPLOY_COMPOSE_FILE}" pull
+            docker compose -f "${DEPLOY_COMPOSE_FILE}" up -d --remove-orphans
+
+            echo "---- docker compose ps ----"
+            docker compose -f "${DEPLOY_COMPOSE_FILE}" ps
+
+            echo "---- health checks ----"
+            curl -fsS http://127.0.0.1:8428/health
+            curl -fsS http://127.0.0.1:3000/api/health
+
+            echo "---- targets checks ----"
+            targets="$(curl -fsS http://127.0.0.1:8428/targets)"
+            echo "$targets" | grep -q "job=node-exporter (1/1 up)"
+            echo "$targets" | grep -q "job=victoriametrics (1/1 up)"
+
+            echo "---- localhost-only ports ----"
+            listeners="$(ss -tlnp | grep -E '8428|3000|9100' || true)"
+            echo "$listeners"
+            echo "$listeners" | grep -q "127.0.0.1:8428"
+            echo "$listeners" | grep -q "127.0.0.1:3000"
+            echo "$listeners" | grep -q "127.0.0.1:9100"
+
+            echo "DEPLOY OK"

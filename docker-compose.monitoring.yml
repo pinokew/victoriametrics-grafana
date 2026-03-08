@@ -1,4 +1,0 @@
-# Phase 0 placeholder.
-# Реальний compose буде додано у Phase 1 (Core Stack Deployment).
-version: "3.9"
-services: {}
