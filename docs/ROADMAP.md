@@ -81,14 +81,14 @@ Secrets: .env (never in Git)
 - [x] Retention = 90 днів, VM volume ≥20 GB
 - [x] Grafana: datasource VictoriaMetrics через provisioning YAML
 - [x] Grafana: `GF_AUTH_ANONYMOUS_ENABLED=false`, admin пароль з `.env`
-- [ ] Cloudflare Tunnel для Grafana + Cloudflare Access policy (MS Entra ID SSO) (ігноруємо до відміни)
+- [x] Cloudflare Tunnel для Grafana + Cloudflare Access policy (MS Entra ID SSO) 
 - [x] Базовий scrape-config: VictoriaMetrics self + Node Exporter
 - [x] Додати деплой monitoring stack до існуючого CD pipeline (GitHub Actions + Tailscale Ephemeral Auth Key)
 
 **DoD:**
 - [x] `/health` VictoriaMetrics → 200
-- [ ] Grafana доступна тільки через Cloudflare Tunnel з аутентифікацією (ігноруємо до відміни)
-- [ ] `curl EXTERNAL_IP:8428` → timeout (не публічний) (ігноруємо до відміни)
+- [ ] Grafana доступна тільки через Cloudflare Tunnel з аутентифікацією 
+- [x] `curl EXTERNAL_IP:8428` → timeout (не публічний)
 - [x] Node Exporter метрики видно в Grafana Explore
 - [x] CD pipeline деплоїть stack автоматично (за наявності deploy secrets і Tailscale доступу)
 
@@ -96,7 +96,7 @@ Secrets: .env (never in Git)
 
 ---
 
-### Phase 2 — Exporters
+### ✅ Phase 2 — Exporters
 > **~3–5 днів | P0 (DB, cAdvisor, Traefik) / P1 (ES, RabbitMQ, KDV)**
 
 **Мета:** Зібрати метрики з усіх критичних KDI-компонентів.
@@ -105,7 +105,7 @@ Secrets: .env (never in Git)
 
 | Exporter | Image | Мережа | Нотатка |
 |----------|-------|--------|---------|
-| cAdvisor | `gcr.io/cadvisor/cadvisor:v0.49.x` | monitoring | `:ro` маунти хоста |
+| cAdvisor | `gcr.io/cadvisor/cadvisor:v0.55.x` | monitoring | `:ro` маунти хоста |
 | MariaDB Exporter | `prom/mysqld-exporter:v0.15.x` | monitoring + kohanet | Read-only user: `PROCESS, SELECT, REPLICATION CLIENT` |
 | PG Exporter | `prometheuscommunity/postgres-exporter:v0.15.x` | monitoring + dspacenet | Read-only user: `SELECT ON pg_stat_*` |
 | Traefik metrics | вбудований | internal | Додати до traefik config: `metrics.prometheus: true` |
@@ -119,18 +119,18 @@ Secrets: .env (never in Git)
 | KDV Integrator custom | Додати `prometheus_client` до Flask, endpoint `/metrics` тільки на internal port |
 
 **Задачі:**
-- [ ] Для кожного DB exporter — створити dedicated read-only user (не app credentials)
-- [ ] Перевірити, що жоден exporter порт не доступний публічно
-- [ ] Оновити `scrape-config.yml` з усіма targets та labels
-- [ ] Перевірити `http://127.0.0.1:8428/targets` — всі P0 targets `UP`
+- [x] Для кожного DB exporter — створити dedicated read-only user (не app credentials)
+- [x] Перевірити, що жоден exporter порт не доступний публічно
+- [x] Оновити `scrape-config.yml` з усіма targets та labels
+- [x] Перевірити `http://127.0.0.1:8428/targets` — всі P0 targets `UP`
 
 **DoD:** Всі P0 targets `UP`, метрики MariaDB/PostgreSQL/cAdvisor/Traefik видні в Grafana, жоден порт не публічний.
 
-**Артефакти:** `exporters/*.yml`, `scrape-config.yml` (повний), `docs/configuration/exporters-config.md`, `docs/security/db-exporter-users.md`
+**Артефакти:** `exporters/README.md`, `scrape-config.yml` (повний), `docs/configuration/exporters-config.md`, `docs/security/db-exporter-users.md`
 
 ---
 
-### Phase 3 — Dashboards
+### ✅ Phase 3 — Dashboards
 > **~3–4 дні | P0**
 
 **Мета:** 5 must-have dashboards у Grafana через Git provisioning.
@@ -150,10 +150,10 @@ Secrets: .env (never in Git)
 **P1 dashboards (після Phase 2 P1):** Elasticsearch, RabbitMQ, KDV Integrator, Monitoring Self.
 
 **Задачі:**
-- [ ] Завантажити базові dashboards з Grafana.com, адаптувати labels під KDI schema
-- [ ] Зберегти як JSON у `grafana/dashboards/`
-- [ ] Налаштувати `grafana/provisioning/dashboards/dashboards.yml`
-- [ ] Після `docker compose restart grafana` — dashboards автоматично присутні
+- [x] Завантажити базові dashboards з Grafana.com, адаптувати labels під KDI schema
+- [x] Зберегти як JSON у `grafana/dashboards/`
+- [x] Налаштувати `grafana/provisioning/dashboards/dashboards.yml`
+- [x] Після `docker compose restart grafana` — dashboards автоматично присутні
 
 **DoD:** Всі 5 dashboards provisioned через файли, дані відображаються, JSON у Git.
 

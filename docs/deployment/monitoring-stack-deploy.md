@@ -56,8 +56,60 @@ ss -tlnp | grep -E '8428|3000|9100'
   - datasource для VictoriaMetrics через provisioning
 
 ## Ручні дії поза цим репозиторієм
-- Налаштувати Cloudflare Tunnel для Grafana
-- Налаштувати Cloudflare Access policy (MS Entra ID)
+
+### Cloudflare Tunnel для Grafana
+
+У репозиторії вже підготовлено сервіс `cloudflared` (profile `phase1-edge`) у `docker-compose.yml`.
+
+1. У Cloudflare Zero Trust створити Tunnel та Public Hostname:
+  - hostname: `${CLOUDFLARE_GRAFANA_HOSTNAME}`
+  - service type: `HTTP`
+  - service URL: `http://grafana:3000`
+2. Скопіювати tunnel token у локальний `.env`:
+
+```env
+CLOUDFLARE_TUNNEL_TOKEN=<token_from_cloudflare>
+```
+
+3. Запустити tunnel-контейнер:
+
+```bash
+docker compose --profile phase1-edge up -d cloudflared
+docker compose logs cloudflared --tail=100
+```
+
+Очікування в логах: є активне з'єднання з Cloudflare edge (рядки на кшталт `Registered tunnel connection`).
+
+### Cloudflare Access policy (MS Entra ID SSO)
+
+Зміна Access policy виконується у Cloudflare Zero Trust (не в цьому репозиторії).
+
+Мінімальна policy для Phase 1:
+- Application type: `Self-hosted`
+- Domain: `${CLOUDFLARE_GRAFANA_HOSTNAME}`
+- Identity provider: `Microsoft Entra ID`
+- Rule: `Allow` тільки для потрібної групи (наприклад, `ops-team`)
+- Rule: `Block` для всіх інших
+
+### Перевірка DoD для Phase 1
+
+1. Grafana доступна тільки через Tunnel + Access auth:
+
+```bash
+# локально Grafana лишається на 127.0.0.1, зовнішній доступ тільки через Cloudflare hostname
+curl -I https://${CLOUDFLARE_GRAFANA_HOSTNAME}
+```
+
+Очікування: повертається сторінка/редирект Cloudflare Access login (до успішної SSO-автентифікації доступ до Grafana UI відсутній).
+
+2. VictoriaMetrics не публічний:
+
+```bash
+EXTERNAL_IP=$(hostname -I | awk '{print $1}')
+curl --connect-timeout 3 http://${EXTERNAL_IP}:8428/health
+```
+
+Очікування: `timeout` або `Failed to connect`.
 
 ## CI/CD деплой (GitHub Actions)
 

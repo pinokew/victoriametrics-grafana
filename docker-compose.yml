@@ -36,6 +36,68 @@ services:
     networks:
       - monitoring_net
 
+  cadvisor:
+    image: ${CADVISOR_IMAGE}
+    container_name: cadvisor
+    restart: unless-stopped
+    pid: "host"
+    cgroup: host
+    privileged: true
+    environment:
+      CADVISOR_HEALTHCHECK_URL: http://localhost:${CADVISOR_INTERNAL_PORT}/healthz
+    command:
+      - --port=${CADVISOR_INTERNAL_PORT}
+      - --housekeeping_interval=10s
+      - --docker_only=true
+      - --store_container_labels=true
+    volumes:
+      - ${HOST_ROOTFS_PATH}:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    devices:
+      - /dev/kmsg
+    networks:
+      - monitoring_net
+
+  mariadb-exporter:
+    image: ${MARIADB_EXPORTER_IMAGE}
+    container_name: mariadb-exporter
+    restart: unless-stopped
+    profiles:
+      - phase2-db
+    env_file:
+      - .env
+    environment:
+      MYSQLD_EXPORTER_PASSWORD: ${MARIADB_EXPORTER_PASSWORD}
+    command:
+      - --mysqld.address=${MARIADB_EXPORTER_TARGET}
+      - --mysqld.username=${MARIADB_EXPORTER_USER}
+      - --web.listen-address=:${MARIADB_EXPORTER_INTERNAL_PORT}
+    ports:
+      - "${MONITORING_BIND_IP}:${MARIADB_EXPORTER_HOST_PORT}:${MARIADB_EXPORTER_INTERNAL_PORT}"
+    networks:
+      - monitoring_net
+      - kohanet
+
+  postgres-exporter:
+    image: ${POSTGRES_EXPORTER_IMAGE}
+    container_name: postgres-exporter
+    restart: unless-stopped
+    profiles:
+      - phase2-db
+    env_file:
+      - .env
+    environment:
+      DATA_SOURCE_NAME: ${POSTGRES_EXPORTER_DSN}
+    ports:
+      - "${MONITORING_BIND_IP}:${POSTGRES_EXPORTER_HOST_PORT}:${POSTGRES_EXPORTER_INTERNAL_PORT}"
+    networks:
+      - monitoring_net
+      - dspacenet
+
   grafana:
     image: ${GRAFANA_IMAGE}
     container_name: grafana
@@ -60,7 +122,32 @@ services:
     networks:
       - monitoring_net
 
+  cloudflared:
+    image: ${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:2026.2.1}
+    container_name: cloudflared
+    restart: unless-stopped
+    profiles:
+      - phase1-edge
+    env_file:
+      - .env
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - grafana
+    networks:
+      - monitoring_net
+
 networks:
   monitoring_net:
     name: ${MONITORING_NETWORK_NAME}
     driver: bridge
+  kohanet:
+    name: ${KOHANET_NETWORK_NAME}
+    external: true
+  dspacenet:
+    name: ${DSPACENET_NETWORK_NAME}
+    external: true

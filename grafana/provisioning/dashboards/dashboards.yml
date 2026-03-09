@@ -1,3 +1,13 @@
-# Phase 0 placeholder for Grafana dashboard provisioning.
 apiVersion: 1
-providers: []
+
+providers:
+  - name: kdi-phase3-dashboards
+    orgId: 1
+    folder: KDI / P0
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    editable: false
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
