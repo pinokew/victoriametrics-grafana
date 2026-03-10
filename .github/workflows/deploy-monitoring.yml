@@ -61,11 +61,12 @@ jobs:
         run: |
           set -euo pipefail
           gitleaks_log="$(mktemp)"
-          gitleaks_report="$(mktemp)"
+          gitleaks_report=".gitleaks-report.json"
+          rm -f "$gitleaks_report"
 
           if ! docker run --rm -v "$PWD:/work" -w /work "${GITLEAKS_IMAGE}" \
             detect --source /work --no-git --redact --exit-code 1 \
-            --report-format json --report-path "$gitleaks_report" 2>&1 | tee "$gitleaks_log"; then
+            --report-format json --report-path "/work/$gitleaks_report" --verbose 2>&1 | tee "$gitleaks_log"; then
             echo "Gitleaks detected potential secrets. Summary log:"
             cat "$gitleaks_log" || true
 
@@ -77,6 +78,8 @@ jobs:
             fi
             exit 1
           fi
+
+          rm -f "$gitleaks_report"
 
       - name: Shellcheck scripts (koalaman/shellcheck)
         shell: bash
