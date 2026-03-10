@@ -248,3 +248,17 @@
 	- Очікуваний результат у CI: при витоку секрета step падає з детальним звітом gitleaks.
 - **Risks:** `--no-git` сканує поточний source tree, але не історію комітів; для повного historical scan можна додати окремий режим у майбутньому.
 - **Rollback:** Видалити `Gitleaks scan` step та `GITLEAKS_IMAGE` з workflow.
+
+## [2026-03-10] — Hotfix CI: Gitleaks тепер друкує findings у лог
+
+- **Context:** `Gitleaks` у CI повідомляв `leaks found`, але не виводив конкретні збіги, що ускладнювало виправлення.
+- **Change:**
+	- У `/.github/workflows/deploy-monitoring.yml` оновлено step `Gitleaks scan (no secrets)`:
+		- додано `--report-format json --report-path <tmp>`;
+		- додано `tee` для збереження stdout/stderr;
+		- при fail крок явно друкує summary-log і JSON report (redacted) у job output.
+- **Verification:**
+	- Локально перевірено синтаксис workflow YAML (`YAML OK`).
+	- Очікуваний результат у CI: при `leaks found` у логах видно конкретні записи (rule/file/line).
+- **Risks:** Redacted report приховує частину значення секрета (очікувана безпечна поведінка).
+- **Rollback:** Повернути попередній одно-рядковий запуск `gitleaks detect` без report/log handling.
