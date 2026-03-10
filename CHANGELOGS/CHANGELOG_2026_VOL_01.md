@@ -61,8 +61,8 @@
 	- Оновлено `docs/deployment/monitoring-stack-deploy.md` секцією CI/CD з вимогою локального `.env` на runner.
 	- Оновлено `docs/ROADMAP.md`: відмічено виконаними пункти про CD pipeline та видимість метрик Node Exporter у Grafana Explore.
 - **Verification:**
-	- `curl -s -u admin:change_me_before_deploy http://127.0.0.1:3000/api/datasources/uid/victoriametrics`
-	- `curl -s -u admin:change_me_before_deploy -H 'Content-Type: application/json' -X POST http://127.0.0.1:3000/api/ds/query -d '{... "expr":"node_uname_info" ...}'` → повертаються series з `job="node-exporter"`.
+	- `curl -s -H 'Authorization: Bearer <grafana_api_token>' http://127.0.0.1:3000/api/datasources/uid/victoriametrics`
+	- `curl -s -H 'Authorization: Bearer <grafana_api_token>' -H 'Content-Type: application/json' -X POST http://127.0.0.1:3000/api/ds/query -d '{... "expr":"node_uname_info" ...}'` → повертаються series з `job="node-exporter"`.
 - **Risks:** Автодеплой у GitHub Actions працює тільки після підключення self-hosted runner і наявності коректного `.env` на runner.
 - **Rollback:** `git revert <commit>` + видалення workflow файлу.
 

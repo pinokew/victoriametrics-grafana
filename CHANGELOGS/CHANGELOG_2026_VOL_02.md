@@ -277,3 +277,16 @@
 	- Очікуваний результат у CI: JSON findings стабільно виводяться в лог при fail.
 - **Risks:** Мінімальні; файл репорту тимчасово створюється у workspace під час виконання кроку.
 - **Rollback:** Повернути попередню версію step із `mktemp` report path.
+
+## [2026-03-10] — Hotfix Gitleaks findings: прибрано `curl -u` з історичного changelog
+
+- **Context:** `Gitleaks` знаходив 2 спрацювання за правилом `curl-auth-user` у `CHANGELOGS/CHANGELOG_2026_VOL_01.md` (рядки 64-65).
+- **Change:**
+	- У verification-прикладах `VOL_01` замінено команди `curl -u admin:...` на безпечний шаблон:
+		- `Authorization: Bearer <grafana_api_token>`.
+	- Вилучено basic-auth синтаксис із архівного changelog, щоб уникнути false-positive/secret-like патернів.
+- **Verification:**
+	- `grep -n "curl -s -u" CHANGELOGS/CHANGELOG_2026_VOL_01.md` -> порожній результат.
+	- Gitleaks більше не репортує ці 2 findings з `VOL_01`.
+- **Risks:** Низькі; зміна тільки в тексті документації/історичних прикладах.
+- **Rollback:** Повернути попередні рядки з `curl -u ...` у `VOL_01`.
