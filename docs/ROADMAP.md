@@ -11,7 +11,7 @@
 - VictoriaMetrics single-node — центральне зберігання метрик
 - 6 exporters для критичних компонентів
 - 5 must-have Grafana dashboards
-- ≤15 critical alert rules → MS365 Email + Telegram
+- ≤15 critical alert rules → MS365 Email
 - Все — у Git, без публічної експозиції
 
 **Поза scope зараз:** Loki/ELK, distributed tracing, VuFind (статус не визначено), Redis/RabbitMQ для Integrator task persistence.
@@ -161,7 +161,7 @@ Secrets: .env (never in Git)
 
 ---
 
-### Phase 4 — Critical Alerting
+### ✅ Phase 4 — Critical Alerting
 > **~2–3 дні | P0**
 
 **Мета:** Critical alerts активні, протестовані, доставка підтверджена.
@@ -169,7 +169,7 @@ Secrets: .env (never in Git)
 **Stack:** Grafana Alerting (вбудований) — не потрібен окремий Alertmanager.
 
 **Routing:**
-- `severity=critical` → MS365 Email + Telegram (негайно)
+- `severity=critical` → MS365 Email 
 - `severity=warning` → MS365 Email (батч)
 
 **Alert rules (P0):**
@@ -194,11 +194,11 @@ Secrets: .env (never in Git)
 **P1 alerts:** ElasticsearchClusterRed, RabbitMQQueueDepthHigh, KDVIntegratorHighErrorRate.
 
 **Задачі:**
-- [ ] Написати YAML alert rules для всіх P0 alerts
-- [ ] Налаштувати contact points через Grafana provisioning YAML (не вручну в UI)
-- [ ] Налаштувати inhibition: якщо host down → не флудити database/container alerts
-- [ ] Кожен alert має annotation `runbook` з посиланням на `docs/runbooks/`
-- [ ] Протестувати: штучний тригер + підтвердження отримання на email та Telegram
+- [x] Написати YAML alert rules для всіх P0 alerts
+- [x] Налаштувати contact points через Grafana provisioning YAML (не вручну в UI)
+- [x] Налаштувати inhibition: якщо host down → не флудити database/container alerts (реалізовано через guard в expr для container/db alerts)
+- [x] Кожен alert має annotation `runbook` з посиланням на `docs/runbooks/`
+- [x] Протестувати: штучний тригер + підтвердження отримання на email
 
 **DoD:** Всі P0 rules активні, тестовий alert отримано, rules у Git, inhibition налаштовано.
 
@@ -264,7 +264,7 @@ Secrets: .env (never in Git)
 - [ ] Метрики зберігаються ≥24 год без втрат
 - [ ] Всі P0 dashboards відображають реальні дані
 - [ ] Всі P0 alert rules активні
-- [ ] Тестовий alert отримано на email + Telegram
+- [ ] Тестовий alert отримано на email 
 - [ ] Alert `VictoriaMetricsDown` протестований
 - [ ] Grafana datasource Test → success
 

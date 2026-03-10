@@ -1,0 +1,25 @@
+groups:
+  - name: phase4-containers
+    interval: 1m
+    rules:
+      - alert: ContainerDown
+        expr: absent_over_time(container_last_seen{job="cadvisor",env="prod",service="host",name=~"victoriametrics|grafana|node-exporter|cadvisor|mariadb-exporter|postgres-exporter"}[2m]) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+        for: 2m
+        labels:
+          severity: critical
+          env: prod
+          service: host
+        annotations:
+          summary: Key container is missing in cAdvisor metrics for 2 minutes
+          runbook: docs/runbooks/container-down.md
+
+      - alert: ContainerHighRestarts
+        expr: changes(container_start_time_seconds{job="cadvisor",env="prod",service="host",name=~"victoriametrics|grafana|node-exporter|cadvisor|mariadb-exporter|postgres-exporter"}[1h]) > 3 and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+        for: 5m
+        labels:
+          severity: warning
+          env: prod
+          service: host
+        annotations:
+          summary: Container restart count exceeded 3 in the last hour
+          runbook: docs/runbooks/container-down.md

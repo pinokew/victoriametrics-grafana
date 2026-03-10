@@ -1,0 +1,51 @@
+groups:
+  - name: phase4-databases
+    interval: 1m
+    rules:
+      - alert: MariaDBDown
+        expr: absent_over_time(mysql_up{job="mariadb-exporter",env="prod",service="koha",component="db"}[2m]) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+        for: 2m
+        labels:
+          severity: critical
+          env: prod
+          service: koha
+          component: db
+        annotations:
+          summary: MariaDB exporter metrics are absent for 2 minutes
+          runbook: docs/runbooks/monitoring-down.md
+
+      - alert: MariaDBConnectionsHigh
+        expr: ((mysql_global_status_threads_connected{job="mariadb-exporter",env="prod",service="koha",component="db"} / mysql_global_variables_max_connections{job="mariadb-exporter",env="prod",service="koha",component="db"}) * 100) > 90 and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+        for: 5m
+        labels:
+          severity: critical
+          env: prod
+          service: koha
+          component: db
+        annotations:
+          summary: MariaDB connections exceeded 90% of max_connections
+          runbook: docs/runbooks/database-connections-high.md
+
+      - alert: PostgreSQLDown
+        expr: absent_over_time(pg_up{job="postgres-exporter",env="prod",service="dspace",component="db"}[2m]) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+        for: 2m
+        labels:
+          severity: critical
+          env: prod
+          service: dspace
+          component: db
+        annotations:
+          summary: PostgreSQL exporter metrics are absent for 2 minutes
+          runbook: docs/runbooks/monitoring-down.md
+
+      - alert: PostgreSQLConnectionsHigh
+        expr: ((sum by(instance) (pg_stat_database_numbackends{job="postgres-exporter",env="prod",service="dspace",component="db"}) / max by(instance) (pg_settings_max_connections{job="postgres-exporter",env="prod",service="dspace",component="db"})) * 100) > 90 and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+        for: 5m
+        labels:
+          severity: critical
+          env: prod
+          service: dspace
+          component: db
+        annotations:
+          summary: PostgreSQL connections exceeded 90% of max_connections
+          runbook: docs/runbooks/database-connections-high.md

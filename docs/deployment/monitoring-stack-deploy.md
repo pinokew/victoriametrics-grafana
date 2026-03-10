@@ -17,26 +17,32 @@ git status
 docker compose ps
 ```
 
-2. Запустити стек:
+2. Згенерувати `victoria-metrics/scrape-config.yml` із шаблону (для private Koha URL):
+
+```bash
+./scripts/render-scrape-config.sh
+```
+
+3. Запустити стек:
 
 ```bash
 docker compose up -d
 ```
 
-3. Перевірити health:
+4. Перевірити health:
 
 ```bash
 curl -s http://127.0.0.1:8428/health
 curl -s http://127.0.0.1:3000/api/health
 ```
 
-4. Перевірити targets:
+5. Перевірити targets:
 
 ```bash
 curl -s http://127.0.0.1:8428/targets | python3 -m json.tool
 ```
 
-5. Перевірити, що порти не публічні:
+6. Перевірити, що порти не публічні:
 
 ```bash
 ss -tlnp | grep -E '8428|3000|9100'
@@ -52,6 +58,12 @@ ss -tlnp | grep -E '8428|3000|9100'
 - `victoria-metrics/scrape-config.yml`:
   - `victoriametrics` self-scrape
   - `node-exporter` scrape
+
+## Шаблонізація scrape-config (Phase 4)
+
+- `victoria-metrics/scrape-config.tmpl.yml` зберігається в Git без приватних URL.
+- `scripts/render-scrape-config.sh` підставляє `KOHA_OPAC_URL` і `KOHA_STAFF_URL` з `.env` у робочий `victoria-metrics/scrape-config.yml`.
+- VictoriaMetrics не інтерполює `${VAR}` всередині scrape-config, тому генерація файлу перед запуском є обов'язковою.
 - `grafana/provisioning/datasources/victoriametrics.yml`:
   - datasource для VictoriaMetrics через provisioning
 

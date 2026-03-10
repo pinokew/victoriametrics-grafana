@@ -35,6 +35,17 @@
 - Target (у `scrape-config.yml`): `traefik:8082`
 - Передумова: у Traefik має бути ввімкнений Prometheus metrics endpoint.
 
+### Blackbox Exporter (Phase 4)
+- Сервіс: `blackbox-exporter`
+- Порт: внутрішній `:9115` (без публікації на host)
+- Конфіг: `blackbox/blackbox.yml`
+- Модулі:
+	- `http_2xx` — перевірка доступності (успіх тільки для HTTP 2xx)
+	- `http_tls` — перевірка HTTPS/TLS
+- Scrape jobs у `victoria-metrics/scrape-config.yml`:
+	- `blackbox-koha-opac`
+	- `blackbox-koha-staff`
+
 ## Команди запуску
 
 1. Базовий стек + cAdvisor:

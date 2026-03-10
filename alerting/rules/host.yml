@@ -1,0 +1,47 @@
+groups:
+  - name: phase4-host
+    interval: 1m
+    rules:
+      - alert: HostHighCPU
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{job="node-exporter",env="prod",service="host",mode="idle"}[5m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: critical
+          env: prod
+          service: host
+        annotations:
+          summary: Host CPU usage is above 90% for 5 minutes
+          runbook: docs/runbooks/high-cpu.md
+
+      - alert: HostHighMemory
+        expr: (1 - (node_memory_MemAvailable_bytes{job="node-exporter",env="prod",service="host"} / node_memory_MemTotal_bytes{job="node-exporter",env="prod",service="host"})) * 100 > 95
+        for: 5m
+        labels:
+          severity: critical
+          env: prod
+          service: host
+        annotations:
+          summary: Host memory usage is above 95% for 5 minutes
+          runbook: docs/runbooks/high-memory.md
+
+      - alert: HostDiskLow
+        expr: min by(instance) ((node_filesystem_avail_bytes{job="node-exporter",env="prod",service="host",fstype!~"tmpfs|overlay",mountpoint!~"/run($|/.*)|/var/lib/docker($|/.*)"} / node_filesystem_size_bytes{job="node-exporter",env="prod",service="host",fstype!~"tmpfs|overlay",mountpoint!~"/run($|/.*)|/var/lib/docker($|/.*)"}) * 100) < 10
+        for: 5m
+        labels:
+          severity: critical
+          env: prod
+          service: host
+        annotations:
+          summary: Host disk free space is below 10% for 5 minutes
+          runbook: docs/runbooks/disk-space-low.md
+
+      - alert: HostDiskWarning
+        expr: min by(instance) ((node_filesystem_avail_bytes{job="node-exporter",env="prod",service="host",fstype!~"tmpfs|overlay",mountpoint!~"/run($|/.*)|/var/lib/docker($|/.*)"} / node_filesystem_size_bytes{job="node-exporter",env="prod",service="host",fstype!~"tmpfs|overlay",mountpoint!~"/run($|/.*)|/var/lib/docker($|/.*)"}) * 100) < 20
+        for: 5m
+        labels:
+          severity: warning
+          env: prod
+          service: host
+        annotations:
+          summary: Host disk free space is below 20% for 5 minutes
+          runbook: docs/runbooks/disk-space-low.md

@@ -27,11 +27,16 @@ services:
     pid: "host"
     command:
       - --path.rootfs=/host
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|run($|/.*)|sys|var/lib/docker($|/.*)|var/lib/containers/storage($|/.*))
       - --web.listen-address=:${NODE_EXPORTER_INTERNAL_PORT}
     ports:
       - "${MONITORING_BIND_IP}:${NODE_EXPORTER_HOST_PORT}:${NODE_EXPORTER_INTERNAL_PORT}"
     volumes:
       - ${HOST_ROOTFS_PATH}:/host:ro,rslave
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
       - ${HOST_UDEV_PATH}:/run/udev:ro
     networks:
       - monitoring_net
@@ -59,6 +64,18 @@ services:
       - /dev/disk:/dev/disk:ro
     devices:
       - /dev/kmsg
+    networks:
+      - monitoring_net
+
+  blackbox-exporter:
+    image: ${BLACKBOX_EXPORTER_IMAGE:-quay.io/prometheus/blackbox-exporter:v0.25.0}
+    container_name: blackbox-exporter
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/blackbox_exporter/config.yml
+      - --web.listen-address=:9115
+    volumes:
+      - ./blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
     networks:
       - monitoring_net
 
@@ -109,6 +126,12 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_SMTP_ENABLED: ${GRAFANA_SMTP_ENABLED:-false}
+      GF_SMTP_HOST: ${MS365_SMTP_HOST:-}:${MS365_SMTP_PORT:-587}
+      GF_SMTP_USER: ${MS365_SMTP_USER:-}
+      GF_SMTP_PASSWORD: ${MS365_SMTP_PASSWORD:-}
+      GF_SMTP_FROM_ADDRESS: ${MS365_ALERT_EMAIL_FROM:-}
+      GF_SMTP_FROM_NAME: ${MS365_ALERT_FROM_NAME:-KDI Monitoring}
       VM_DATASOURCE_URL: ${VM_DATASOURCE_URL}
     depends_on:
       - victoriametrics

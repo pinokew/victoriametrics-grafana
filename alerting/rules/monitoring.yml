@@ -1,0 +1,25 @@
+groups:
+  - name: phase4-monitoring
+    interval: 1m
+    rules:
+      - alert: VictoriaMetricsDown
+        expr: absent_over_time(up{job="victoriametrics",env="prod",service="monitoring"}[2m])
+        for: 2m
+        labels:
+          severity: critical
+          env: prod
+          service: monitoring
+        annotations:
+          summary: VictoriaMetrics scrape target is absent for 2 minutes
+          runbook: docs/runbooks/monitoring-down.md
+
+      - alert: AnyTargetDown
+        expr: up{env="prod"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          env: prod
+          service: monitoring
+        annotations:
+          summary: One or more scrape targets are down
+          runbook: docs/runbooks/monitoring-down.md

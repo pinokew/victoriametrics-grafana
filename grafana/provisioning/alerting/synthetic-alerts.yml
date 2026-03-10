@@ -1,0 +1,66 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: phase4-synthetic-alerting
+    folder: Alerting
+    interval: 1m
+    rules:
+      - uid: synthetic-email-smoke
+        title: SyntheticEmailSmoke
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: vector(0)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: Synthetic smoke alert for email delivery verification
+          runbook: docs/runbooks/monitoring-down.md, docs/alerting/alert-rules-catalog.md
+        labels:
+          severity: warning
+          env: prod
+          service: monitoring
+          synthetic: "true"

@@ -60,7 +60,7 @@ scrape_configs:
         - http_2xx
     static_configs:
       - targets:
-          - https://biblio.fby.com.ua
+          - __KOHA_OPAC_URL__
         labels:
           env: prod
           service: koha
@@ -80,7 +80,7 @@ scrape_configs:
         - http_2xx
     static_configs:
       - targets:
-          - https://library.fby.com.ua
+          - __KOHA_STAFF_URL__
         labels:
           env: prod
           service: koha

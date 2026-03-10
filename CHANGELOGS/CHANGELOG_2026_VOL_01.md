@@ -282,19 +282,6 @@
 	- `count(container_cpu_usage_seconds_total{job="cadvisor",name!=""}) = 22`
 	- `api/v1/series` для `container_cpu_usage_seconds_total{job="cadvisor"}` підтверджує наявність labels: `name`, `image`, `container_label_com_docker_compose_service`
 	- `curl -s http://127.0.0.1:3000/api/health` → `ok`
-- **Risks:** Репозиторій `ghcr.io/google/cadvisor` з тегами `v0.55.0/v0.56.0` не резолвиться в поточному середовищі; для цього хоста валідно підтверджений `gcr.io/cadvisor/cadvisor:v0.55.1`.
+- **Risks:**  для цього хоста валідно підтверджений `ghcr.io/google/cadvisor@sha256:e02855207ec07bb45ee41f720645945251f093f24c28f8c29cf718490f784922`.
 - **Rollback:** `git revert <commit>` + `docker compose -f docker-compose.yml up -d --force-recreate cadvisor && docker compose -f docker-compose.yml restart grafana`.
 
-## [2026-03-09] — Validation note: GHCR cadvisor commit-tag panic in runtime
-
-- **Context:** Перевірка альтернативного образу `ghcr.io/google/cadvisor:2d5bbad-2d5bbada76eddb24d0979cc599ebb6d6a7a89fd6` (користувач надав як 0.56.1 build).
-- **Change:**
-	- Образ успішно pull-иться: digest `sha256:3c43597efb8eba804b7eaf8161261a57d817424326fa443e0a8d32357a0982d6`.
-	- Після запуску в `docker-compose` контейнер `cadvisor` падає з `panic: runtime error: invalid memory address or nil pointer dereference`.
-	- Виконано негайний rollback runtime і дефолтного конфігу на `gcr.io/cadvisor/cadvisor:v0.55.1`.
-- **Verification:**
-	- `docker compose -f docker-compose.yml ps cadvisor` → `Up (healthy)` на `v0.55.1`
-	- `docker compose -f docker-compose.yml logs cadvisor --tail=120 | grep -Ei 'panic|mount-id|failed to create existing container|error'` → порожньо
-	- `count(container_cpu_usage_seconds_total{job="cadvisor",name!=""}) = 22`
-- **Risks:** commit-tag у GHCR може бути нестабільним для поточного runtime; використовувати тільки після окремого smoke-тесту у staging.
-- **Rollback:** вже виконано в цьому кроці (`CADVISOR_IMAGE` повернуто на `v0.55.1`).

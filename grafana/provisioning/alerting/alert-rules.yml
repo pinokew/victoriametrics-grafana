@@ -1,0 +1,823 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: phase4-critical-alerting
+    folder: Alerting
+    interval: 1m
+    rules:
+      - uid: host-high-cpu
+        title: HostHighCPU
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{job="node-exporter",env="prod",service="host",mode="idle"}[5m])) * 100)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 90
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Host CPU usage is above 90% for 5 minutes
+          runbook: docs/runbooks/high-cpu.md
+        labels:
+          severity: critical
+          env: prod
+          service: host
+
+      - uid: host-high-memory
+        title: HostHighMemory
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: (1 - (node_memory_MemAvailable_bytes{job="node-exporter",env="prod",service="host"} / node_memory_MemTotal_bytes{job="node-exporter",env="prod",service="host"})) * 100
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 95
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Host memory usage is above 95% for 5 minutes
+          runbook: docs/runbooks/high-memory.md
+        labels:
+          severity: critical
+          env: prod
+          service: host
+
+      - uid: host-disk-low
+        title: HostDiskLow
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: min by(instance) ((node_filesystem_avail_bytes{job="node-exporter",env="prod",service="host",fstype!~"tmpfs|overlay",mountpoint!~"/run($|/.*)|/var/lib/docker($|/.*)"} / node_filesystem_size_bytes{job="node-exporter",env="prod",service="host",fstype!~"tmpfs|overlay",mountpoint!~"/run($|/.*)|/var/lib/docker($|/.*)"}) * 100)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 10
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Host disk free space is below 10% for 5 minutes
+          runbook: docs/runbooks/disk-space-low.md
+        labels:
+          severity: critical
+          env: prod
+          service: host
+
+      - uid: host-disk-warning
+        title: HostDiskWarning
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: min by(instance) ((node_filesystem_avail_bytes{job="node-exporter",env="prod",service="host",fstype!~"tmpfs|overlay",mountpoint!~"/run($|/.*)|/var/lib/docker($|/.*)"} / node_filesystem_size_bytes{job="node-exporter",env="prod",service="host",fstype!~"tmpfs|overlay",mountpoint!~"/run($|/.*)|/var/lib/docker($|/.*)"}) * 100)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 20
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Host disk free space is below 20% for 5 minutes
+          runbook: docs/runbooks/disk-space-low.md
+        labels:
+          severity: warning
+          env: prod
+          service: host
+
+      - uid: container-down
+        title: ContainerDown
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 180
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: absent_over_time(container_last_seen{job="cadvisor",env="prod",service="host",name=~"victoriametrics|grafana|node-exporter|cadvisor|mariadb-exporter|postgres-exporter"}[2m]) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: Key container is missing in cAdvisor metrics for 2 minutes
+          runbook: docs/runbooks/container-down.md
+        labels:
+          severity: critical
+          env: prod
+          service: host
+
+      - uid: container-high-restarts
+        title: ContainerHighRestarts
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 4200
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: changes(container_start_time_seconds{job="cadvisor",env="prod",service="host",name=~"victoriametrics|grafana|node-exporter|cadvisor|mariadb-exporter|postgres-exporter"}[1h])
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 3
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Container restart count exceeded 3 in the last hour
+          runbook: docs/runbooks/container-down.md
+        labels:
+          severity: warning
+          env: prod
+          service: host
+
+      - uid: mariadb-down
+        title: MariaDBDown
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 180
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: absent_over_time(mysql_up{job="mariadb-exporter",env="prod",service="koha",component="db"}[2m]) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: MariaDB exporter metrics are absent for 2 minutes
+          runbook: docs/runbooks/monitoring-down.md
+        labels:
+          severity: critical
+          env: prod
+          service: koha
+          component: db
+
+      - uid: mariadb-connections-high
+        title: MariaDBConnectionsHigh
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: ((mysql_global_status_threads_connected{job="mariadb-exporter",env="prod",service="koha",component="db"} / mysql_global_variables_max_connections{job="mariadb-exporter",env="prod",service="koha",component="db"}) * 100) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 90
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: MariaDB connections exceeded 90% of max_connections
+          runbook: docs/runbooks/database-connections-high.md
+        labels:
+          severity: critical
+          env: prod
+          service: koha
+          component: db
+
+      - uid: postgresql-down
+        title: PostgreSQLDown
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 180
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: absent_over_time(pg_up{job="postgres-exporter",env="prod",service="dspace",component="db"}[2m]) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: PostgreSQL exporter metrics are absent for 2 minutes
+          runbook: docs/runbooks/monitoring-down.md
+        labels:
+          severity: critical
+          env: prod
+          service: dspace
+          component: db
+
+      - uid: postgresql-connections-high
+        title: PostgreSQLConnectionsHigh
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: ((sum by(instance) (pg_stat_database_numbackends{job="postgres-exporter",env="prod",service="dspace",component="db"}) / max by(instance) (pg_settings_max_connections{job="postgres-exporter",env="prod",service="dspace",component="db"})) * 100) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 90
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: PostgreSQL connections exceeded 90% of max_connections
+          runbook: docs/runbooks/database-connections-high.md
+        labels:
+          severity: critical
+          env: prod
+          service: dspace
+          component: db
+
+      - uid: traefik-high-error-rate
+        title: TraefikHighErrorRate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: (sum(rate(traefik_service_requests_total{job="traefik",env="prod",service="traefik",code=~"5.."}[5m])) / sum(rate(traefik_service_requests_total{job="traefik",env="prod",service="traefik"}[5m])) * 100)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 5
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Traefik 5xx error rate exceeded 5% for 5 minutes
+          runbook: docs/runbooks/monitoring-down.md
+        labels:
+          severity: critical
+          env: prod
+          service: traefik
+
+      - uid: traefik-high-latency
+        title: TraefikHighLatency
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: histogram_quantile(0.95, sum(rate(traefik_service_request_duration_seconds_bucket{job="traefik",env="prod",service="traefik"}[5m])) by (le))
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 5
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Traefik p95 latency exceeded 5 seconds for 5 minutes
+          runbook: docs/runbooks/monitoring-down.md
+        labels:
+          severity: warning
+          env: prod
+          service: traefik
+
+      - uid: victoriametrics-down
+        title: VictoriaMetricsDown
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 180
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: absent_over_time(up{job="victoriametrics",env="prod",service="monitoring"}[2m])
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: VictoriaMetrics scrape target is absent for 2 minutes
+          runbook: docs/runbooks/monitoring-down.md
+        labels:
+          severity: critical
+          env: prod
+          service: monitoring
+
+      - uid: any-target-down
+        title: AnyTargetDown
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: min(up{env="prod"})
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: One or more scrape targets are down
+          runbook: docs/runbooks/monitoring-down.md
+        labels:
+          severity: warning
+          env: prod
+          service: monitoring

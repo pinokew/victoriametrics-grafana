@@ -1,0 +1,25 @@
+groups:
+  - name: phase4-traefik
+    interval: 1m
+    rules:
+      - alert: TraefikHighErrorRate
+        expr: (sum(rate(traefik_service_requests_total{job="traefik",env="prod",service="traefik",code=~"5.."}[5m])) / sum(rate(traefik_service_requests_total{job="traefik",env="prod",service="traefik"}[5m])) * 100) > 5
+        for: 5m
+        labels:
+          severity: critical
+          env: prod
+          service: traefik
+        annotations:
+          summary: Traefik 5xx error rate exceeded 5% for 5 minutes
+          runbook: docs/runbooks/monitoring-down.md
+
+      - alert: TraefikHighLatency
+        expr: histogram_quantile(0.95, sum(rate(traefik_service_request_duration_seconds_bucket{job="traefik",env="prod",service="traefik"}[5m])) by (le)) > 5
+        for: 5m
+        labels:
+          severity: warning
+          env: prod
+          service: traefik
+        annotations:
+          summary: Traefik p95 latency exceeded 5 seconds for 5 minutes
+          runbook: docs/runbooks/monitoring-down.md
