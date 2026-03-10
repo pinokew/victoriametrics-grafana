@@ -73,7 +73,7 @@ wait_for_http() {
   local attempts="$2"
   local delay="$3"
 
-  for i in $(seq 1 "$attempts"); do
+  for _ in $(seq 1 "$attempts"); do
     if curl -fsS "$url" >/dev/null; then
       return 0
     fi
@@ -97,7 +97,12 @@ if [[ -n "$BACKUP_ARG" ]]; then
     BACKUP_PATH="$(abs_path "$BACKUP_ARG")"
   fi
 else
-  BACKUP_PATH="$(ls -1t "$VM_BACKUP_ABS"/vmdata-*.tar.gz 2>/dev/null | head -n1 || true)"
+  BACKUP_PATH="$(
+    find "$VM_BACKUP_ABS" -maxdepth 1 -type f -name 'vmdata-*.tar.gz' -printf '%T@ %p\n' 2>/dev/null \
+      | sort -nr \
+      | head -n1 \
+      | cut -d' ' -f2-
+  )"
 fi
 
 if [[ -z "$BACKUP_PATH" ]]; then

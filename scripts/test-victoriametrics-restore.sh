@@ -48,6 +48,7 @@ success_timestamp="0"
 restore_status="0"
 backup_dir="$VM_BACKUP_ABS"
 
+# shellcheck disable=SC2329
 emit_restore_metrics() {
   mkdir -p "$TEXTFILE_DIR_ABS"
   local metrics_payload
@@ -97,6 +98,7 @@ fi
 tmp_dir="$(mktemp -d)"
 container_name="vm-restore-smoke-$(date +%s)"
 
+# shellcheck disable=SC2329
 cleanup() {
   local exit_code=$?
   docker rm -f "$container_name" >/dev/null 2>&1 || true
