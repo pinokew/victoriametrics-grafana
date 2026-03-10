@@ -174,8 +174,32 @@ jobs:
                 ;;
             esac
 
-            docker compose -f "${DEPLOY_COMPOSE_FILE}" pull
-            docker compose -f "${DEPLOY_COMPOSE_FILE}" up -d --remove-orphans
+            retry_cmd() {
+              local description="$1"
+              local attempts="$2"
+              local delay_seconds="$3"
+              shift 3
+
+              local i
+              for i in $(seq 1 "$attempts"); do
+                echo "Running: ${description} (attempt ${i}/${attempts})"
+                if "$@"; then
+                  echo "Command succeeded: ${description}"
+                  return 0
+                fi
+
+                if [ "$i" -lt "$attempts" ]; then
+                  echo "Command failed: ${description}. Retrying in ${delay_seconds}s..."
+                  sleep "$delay_seconds"
+                fi
+              done
+
+              echo "ERROR: Command failed after ${attempts} attempts: ${description}"
+              return 1
+            }
+
+            retry_cmd "docker compose pull" 4 20 docker compose -f "${DEPLOY_COMPOSE_FILE}" pull
+            retry_cmd "docker compose up -d --remove-orphans" 3 15 docker compose -f "${DEPLOY_COMPOSE_FILE}" up -d --remove-orphans
 
             echo "---- docker compose ps ----"
             docker compose -f "${DEPLOY_COMPOSE_FILE}" ps

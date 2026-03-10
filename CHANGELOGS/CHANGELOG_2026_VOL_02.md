@@ -218,3 +218,18 @@
 	- Очікуваний результат у CI/CD: transient reset під час warm-up не валить деплой з першої спроби.
 - **Risks:** Якщо сервіс стабільно недоступний, деплой все одно завершиться помилкою після вичерпання retry (очікувана поведінка).
 - **Rollback:** Повернути одноразові `curl` health checks у deploy script.
+
+## [2026-03-10] — Hotfix deploy: retry для `docker compose pull/up` при TLS timeout
+
+- **Context:** CD deploy падав під час `docker compose pull` з транзитною помилкою Docker Hub: `net/http: TLS handshake timeout` для `cloudflare/cloudflared` та інших image.
+- **Change:**
+	- У `/.github/workflows/deploy-monitoring.yml` (SSH script) додано helper `retry_cmd`.
+	- Загорнуто критичні команди деплою в retry:
+		- `docker compose pull`: `4` спроби, пауза `20s`;
+		- `docker compose up -d --remove-orphans`: `3` спроби, пауза `15s`.
+	- Додано детальні логи по кожній спробі (`attempt N/M`, success/fail).
+- **Verification:**
+	- Локально перевірено синтаксис workflow YAML (`YAML OK`).
+	- Очікуваний результат: transient registry/network збої не валять деплой з першої спроби.
+- **Risks:** При стабільно недоступному registry деплой завершиться помилкою після вичерпання retry (очікувана fail-fast поведінка).
+- **Rollback:** Повернути одноразові виклики `docker compose pull` і `docker compose up -d --remove-orphans`.
