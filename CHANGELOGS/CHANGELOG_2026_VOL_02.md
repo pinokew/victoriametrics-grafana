@@ -233,3 +233,18 @@
 	- Очікуваний результат: transient registry/network збої не валять деплой з першої спроби.
 - **Risks:** При стабільно недоступному registry деплой завершиться помилкою після вичерпання retry (очікувана fail-fast поведінка).
 - **Rollback:** Повернути одноразові виклики `docker compose pull` і `docker compose up -d --remove-orphans`.
+
+## [2026-03-10] — Phase 5 (інкремент 2): додано Gitleaks scan у CI
+
+- **Context:** Наступний пункт роадмапи Phase 5: `Gitleaks scan — no secrets` як обов'язковий security gate перед деплоєм.
+- **Change:**
+	- У `/.github/workflows/deploy-monitoring.yml` додано `GITLEAKS_IMAGE=zricethezav/gitleaks:v8.24.2`.
+	- У крок `Pull CI utility images` додано pre-pull gitleaks image.
+	- Додано новий крок `Gitleaks scan (no secrets)` у job `security-gate`:
+		- `gitleaks detect --source /work --no-git --redact --exit-code 1`.
+	- Крок запускається до deploy і блокує pipeline, якщо знайдено секрети у робочому дереві репозиторію.
+- **Verification:**
+	- Локально перевірено синтаксис workflow YAML (`YAML OK`).
+	- Очікуваний результат у CI: при витоку секрета step падає з детальним звітом gitleaks.
+- **Risks:** `--no-git` сканує поточний source tree, але не історію комітів; для повного historical scan можна додати окремий режим у майбутньому.
+- **Rollback:** Видалити `Gitleaks scan` step та `GITLEAKS_IMAGE` з workflow.

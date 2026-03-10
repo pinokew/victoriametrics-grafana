@@ -28,6 +28,7 @@ concurrency:
 env:
   SHELLCHECK_IMAGE: koalaman/shellcheck@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d
   TRIVY_IMAGE: aquasec/trivy@sha256:3d1f862cb6c4fe13c1506f96f816096030d8d5ccdb2380a3069f7bf07daa86aa
+  GITLEAKS_IMAGE: zricethezav/gitleaks:v8.24.2
   DEPLOY_BRANCH: main
   DEPLOY_COMPOSE_FILE: docker-compose.yml
 
@@ -53,6 +54,14 @@ jobs:
           set -euo pipefail
           docker pull "${SHELLCHECK_IMAGE}"
           docker pull "${TRIVY_IMAGE}"
+          docker pull "${GITLEAKS_IMAGE}"
+
+      - name: Gitleaks scan (no secrets)
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/work" -w /work "${GITLEAKS_IMAGE}" \
+            detect --source /work --no-git --redact --exit-code 1
 
       - name: Shellcheck scripts (koalaman/shellcheck)
         shell: bash
