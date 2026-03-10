@@ -83,8 +83,8 @@ services:
     image: ${MARIADB_EXPORTER_IMAGE}
     container_name: mariadb-exporter
     restart: unless-stopped
-    profiles:
-      - phase2-db
+    # profiles:
+    #   - phase2-db
     env_file:
       - .env
     environment:
@@ -103,8 +103,8 @@ services:
     image: ${POSTGRES_EXPORTER_IMAGE}
     container_name: postgres-exporter
     restart: unless-stopped
-    profiles:
-      - phase2-db
+    # profiles:
+    #   - phase2-db
     env_file:
       - .env
     environment:
@@ -149,8 +149,8 @@ services:
     image: ${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:2026.2.1}
     container_name: cloudflared
     restart: unless-stopped
-    profiles:
-      - phase1-edge
+    # profiles:
+    #   - phase1-edge
     env_file:
       - .env
     command:
