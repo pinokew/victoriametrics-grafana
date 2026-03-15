@@ -41,23 +41,23 @@
 │  │         ▼                                      │        │   │
 │  │  Grafana :3000  ──────── datasource ───────────┘        │   │
 │  │         │                                               │   │
-│  │  Cloudflared ──── tunnel ──► Cloudflare Edge            │   │
-│  │                                         │               │   │
+│  │         └── proxy-net ───► Central Traefik ──► Cloudflare│   │
+│  │                                               (external) │   │
 │  │  Node Exporter :9100 (host metrics)     │               │   │
 │  │  cAdvisor      :8081 (container metrics)│               │   │
 │  │  Blackbox Exp. :9115 (HTTP probes)      ▼               │   │
-│  │  MariaDB Exp.  :9104 ──── kohanet   MS Entra ID SSO     │   │
-│  │  Postgres Exp. :9187 ──── dspacenet                     │   │
+│  │  MariaDB Exp.  :9104 ─ koha-deploy_kohanet (external)   │   │
+│  │  Postgres Exp. :9187 ─ dspace9_dspacenet (external)     │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
-│  Зовнішні мережі: kohanet, dspacenet (external Docker networks)│
+│  Зовнішні мережі: proxy-net, koha-deploy_kohanet, dspace9_dspacenet │
 └─────────────────────────────────────────────────────────────────┘
 
 CI/CD: GitHub Actions ──► Tailscale VPN ──► HOST VM
 ```
 
 **Принцип доступу:** всі порти прив'язані на `127.0.0.1` (недоступні ззовні).  
-Grafana доступна ззовні виключно через Cloudflare Tunnel + Cloudflare Access (SSO MS Entra ID).
+Grafana доступна ззовні через центральний Traefik (`proxy-net`) і зовнішній edge-доступ, який керується в repo Traefik.
 
 ---
 
@@ -67,12 +67,11 @@ Grafana доступна ззовні виключно через Cloudflare Tun
 |--------|-------------|------|-------------|
 | `victoriametrics` | `8428` | `127.0.0.1` | TSDB: зберігання метрик, PromQL API, `/targets` |
 | `grafana` | `3000` | `127.0.0.1` | Dashboards + Unified Alerting (провізіонується з Git) |
-| `cloudflared` | — | — | Cloudflare Tunnel — єдиний external ingress до Grafana |
 | `node-exporter` | `9100` | `127.0.0.1` | Host-метрики (CPU, RAM, диск, мережа) |
 | `cadvisor` | `8081` | `127.0.0.1` | Per-container ресурсні метрики |
 | `blackbox-exporter` | `9115` | `127.0.0.1` | HTTP/HTTPS probe-и (Koha OPAC, Staff, DSpace) |
-| `mariadb-exporter` | `9104` | `127.0.0.1` | MySQL/MariaDB метрики (Koha DB через `kohanet`) |
-| `postgres-exporter` | `9187` | `127.0.0.1` | PostgreSQL метрики (DSpace DB через `dspacenet`) |
+| `mariadb-exporter` | `9104` | `127.0.0.1` | MySQL/MariaDB метрики (Koha DB через `koha-deploy_kohanet`) |
+| `postgres-exporter` | `9187` | `127.0.0.1` | PostgreSQL метрики (DSpace DB через `dspace9_dspacenet`) |
 
 > Повна таблиця портів (включно з P1-компонентами): [docs/architecture/ports-map.md](docs/architecture/ports-map.md)
 
@@ -194,14 +193,14 @@ victoriametrics-grafana/
 
 - Docker Engine + Docker Compose v2
 - Файл `.env` заповнений на базі `.env.example`
-- Зовнішні Docker-мережі `kohanet` та `dspacenet` існують (якщо потрібні DB exporters)
+- Зовнішні Docker-мережі існують: `proxy-net`, `koha-deploy_kohanet`, `dspace9_dspacenet`
 
 ### Кроки
 
 ```bash
 # 1. Скопіювати та заповнити секрети
 cp .env.example .env
-# відредагувати .env: паролі, Cloudflare token, SMTP, адреси DB
+# відредагувати .env: паролі, SMTP, адреси DB, hostname для Grafana ingress
 
 # 2. Ініціалізувати директорії даних (.data/grafana, .data/victoriametrics, тощо)
 ./scripts/init-monitoring-volumes.sh
@@ -235,7 +234,7 @@ curl -s http://127.0.0.1:3000/api/health
 | **VictoriaMetrics** | `VM_RETENTION_PERIOD`, `VM_DATA_DIR` | Retention, шлях до volume |
 | **Grafana** | `GRAFANA_ADMIN_PASSWORD`, `GRAFANA_AUTO_ASSIGN_ORG_ROLE` | Адмін-доступ, дефолтна роль |
 | **SMTP** | `MS365_SMTP_HOST`, `MS365_ALERT_EMAIL_TO` | Email-alerts через MS365 |
-| **Cloudflare** | `CLOUDFLARE_TUNNEL_TOKEN` | Tunnel-токен для зовнішнього доступу |
+| **Ingress** | `CLOUDFLARE_GRAFANA_HOSTNAME`, `PROXY_NET_NETWORK_NAME` | Ім'я домену Grafana і зовнішня мережа Traefik |
 | **DB Exporters** | `MARIADB_EXPORTER_PASSWORD`, `POSTGRES_EXPORTER_DSN` | Credentials для DB |
 
 > Докладний опис кожної змінної: [docs/configuration/exporters-config.md](docs/configuration/exporters-config.md)
@@ -263,7 +262,6 @@ curl -s http://127.0.0.1:3000/api/health
 | `traefik` | `traefik:8082` | `service=traefik` |
 | `blackbox-koha-opac` | `https://biblio.fby.com.ua` | `service=koha, website=opac` |
 | `blackbox-koha-staff` | staff-URL | `service=koha, website=staff` |
-| `blackbox-dspace` | DSpace URL | `service=dspace` |
 
 Всі метрики мають глобальний label `env=prod`.  
 Перегенерація конфігу: `./scripts/render-scrape-config.sh`  
@@ -375,7 +373,7 @@ VictoriaMetrics volume бекапиться в `.backups/vmdata-<timestamp>.tar.
 | Принцип | Реалізація |
 |---------|-----------|
 | Network isolation | Всі порти bind на `127.0.0.1`; зовні не доступні |
-| Zero-trust external access | Grafana тільки через Cloudflare Tunnel + Access (MS Entra ID SSO) |
+| Controlled external access | Grafana публікується через central Traefik (`proxy-net`) з edge-доступом на стороні Traefik stack |
 | No anonymous access | `GF_AUTH_ANONYMOUS_ENABLED=false` в Grafana |
 | Secrets management | Всі credentials у `.env` (у `.gitignore`, не в Git) |
 | CI secret scanning | Gitleaks у кожному PR/push |

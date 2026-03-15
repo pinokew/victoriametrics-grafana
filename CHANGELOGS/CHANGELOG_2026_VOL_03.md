@@ -128,3 +128,15 @@
 	- Контент не вводить нових архітектурних рішень, а консолідує вже затверджені у репозиторії.
 - **Risks:** Можливе часткове застарівання деталей при майбутніх змінах compose/provisioning без оновлення цих документів.
 - **Rollback:** Видалити додані файли або відкотити коміт із документацією.
+
+## [2026-03-15] — README sync after ingress/network migration
+
+- **Context:** Після міграції на центральний Traefik і видалення in-repo tunnel README містив застарілі описи (`cloudflared`, tunnel token, старі назви external networks).
+- **Change:** Оновлено `README.md`:
+	- у розділах Architecture/Security замінено модель доступу з in-repo Cloudflare Tunnel на central Traefik (`proxy-net`).
+	- у таблиці сервісів прибрано `cloudflared`.
+	- у prerequisites і `.env` секціях синхронізовано мережі/змінні (`proxy-net`, `koha-deploy_kohanet`, `dspace9_dspacenet`, `CLOUDFLARE_GRAFANA_HOSTNAME`).
+	- у scrape jobs прибрано неактуальний `blackbox-dspace` рядок.
+- **Verification:** README не містить застарілих посилань на `cloudflared`/`CLOUDFLARE_TUNNEL_TOKEN` і відповідає поточному `docker-compose.yml`/provisioning.
+- **Risks:** Документаційна зміна без runtime-впливу.
+- **Rollback:** Повернути попередню версію `README.md` з Git history.
