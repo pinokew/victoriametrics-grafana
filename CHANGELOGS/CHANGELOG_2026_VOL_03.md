@@ -140,3 +140,14 @@
 - **Verification:** README не містить застарілих посилань на `cloudflared`/`CLOUDFLARE_TUNNEL_TOKEN` і відповідає поточному `docker-compose.yml`/provisioning.
 - **Risks:** Документаційна зміна без runtime-впливу.
 - **Rollback:** Повернути попередню версію `README.md` з Git history.
+
+## [2026-03-15] — CI/CD hardening: robust targets checks in deploy workflow
+
+- **Context:** GitHub Actions CD періодично падав на кроці `---- targets checks ----` після успішних health checks через ламку текстову перевірку `curl /targets | grep ...`.
+- **Change:** Оновлено `.github/workflows/deploy-monitoring.yml`:
+	- замінено текстовий `grep` по `http://127.0.0.1:8428/targets` на JSON-перевірку `http://127.0.0.1:8428/api/v1/targets` через `jq`;
+	- додано retry-loop `wait_for_targets_up 18 5` для транзитного стану після рестарту контейнерів;
+	- додано діагностичний вивід `scrapeUrl/health/lastError` при невдалій спробі.
+- **Verification:** Workflow скрипт тепер проходить targets-check лише коли `node-exporter` і `victoriametrics` мають `health=up`, та не падає на коротких race conditions після deploy.
+- **Risks:** Потрібна наявність `jq` на remote host (використовувався і раніше в інших перевірках проєкту).
+- **Rollback:** Повернути попередній блок `targets checks` з `grep` у `.github/workflows/deploy-monitoring.yml`.

@@ -252,9 +252,38 @@ jobs:
             wait_for_http "Grafana" "http://127.0.0.1:3000/api/health" 18 5
 
             echo "---- targets checks ----"
-            targets="$(curl -fsS http://127.0.0.1:8428/targets)"
-            echo "$targets" | grep -q "job=node-exporter (1/1 up)"
-            echo "$targets" | grep -q "job=victoriametrics (1/1 up)"
+            wait_for_targets_up() {
+              local attempts="$1"
+              local delay_seconds="$2"
+              local i
+
+              for i in $(seq 1 "$attempts"); do
+                local json
+                if ! json="$(curl -fsS "http://127.0.0.1:8428/api/v1/targets")"; then
+                  echo "Targets API retry ${i}/${attempts} failed (request error); waiting ${delay_seconds}s"
+                  sleep "$delay_seconds"
+                  continue
+                fi
+
+                if echo "$json" | jq -e '
+                  any(.data.activeTargets[]?; .scrapeUrl == "http://node-exporter:9100/metrics" and .health == "up")
+                  and
+                  any(.data.activeTargets[]?; .scrapeUrl == "http://victoriametrics:8428/metrics" and .health == "up")
+                ' >/dev/null; then
+                  echo "Targets check passed: node-exporter and victoriametrics are up"
+                  return 0
+                fi
+
+                echo "Targets retry ${i}/${attempts} failed; waiting ${delay_seconds}s"
+                echo "$json" | jq -r '.data.activeTargets[]? | [.scrapeUrl, .health, (.lastError // "-")] | @tsv' || true
+                sleep "$delay_seconds"
+              done
+
+              echo "ERROR: Targets check failed after ${attempts} attempts"
+              return 1
+            }
+
+            wait_for_targets_up 18 5
 
             echo "---- localhost-only ports ----"
             listeners="$(ss -tlnp | grep -E '8428|3000|9100' || true)"
