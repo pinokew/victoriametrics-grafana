@@ -12,6 +12,7 @@ services:
       - --retentionPeriod=${VM_RETENTION_PERIOD}
       - --promscrape.config=/etc/vm/${VM_SCRAPE_CONFIG_FILE}
       - --httpListenAddr=:${VM_INTERNAL_PORT}
+      - --maxLabelsPerTimeseries=100
     ports:
       - "${MONITORING_BIND_IP}:${VM_HOST_PORT}:${VM_INTERNAL_PORT}"
     volumes:
@@ -19,6 +20,7 @@ services:
       - ${VM_SCRAPE_CONFIG_PATH}:/etc/vm/${VM_SCRAPE_CONFIG_FILE}:ro
     networks:
       - monitoring_net
+      - proxy-net
 
   node-exporter:
     image: ${NODE_EXPORTER_IMAGE}
@@ -147,27 +149,16 @@ services:
       - ${GRAFANA_LOGS_DIR}:/var/log/grafana
       - ${GRAFANA_PROVISIONING_DIR}:/etc/grafana/provisioning:ro
       - ${GRAFANA_DASHBOARDS_DIR}:/var/lib/grafana/dashboards:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy-net"
+      - "traefik.http.routers.grafana.rule=Host(`${CLOUDFLARE_GRAFANA_HOSTNAME}`)"
+      - "traefik.http.routers.grafana.entrypoints=web"
+      - "traefik.http.routers.grafana.service=grafana"
+      - "traefik.http.services.grafana.loadbalancer.server.port=${GRAFANA_INTERNAL_PORT}"
     networks:
       - monitoring_net
-
-  cloudflared:
-    image: ${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:2026.2.1}
-    container_name: cloudflared
-    restart: unless-stopped
-    # profiles:
-    #   - phase1-edge
-    env_file:
-      - .env
-    command:
-      - tunnel
-      - --no-autoupdate
-      - run
-      - --token
-      - ${CLOUDFLARE_TUNNEL_TOKEN:-}
-    depends_on:
-      - grafana
-    networks:
-      - monitoring_net
+      - proxy-net
 
 networks:
   monitoring_net:
@@ -178,4 +169,7 @@ networks:
     external: true
   dspacenet:
     name: ${DSPACENET_NETWORK_NAME}
+    external: true
+  proxy-net:
+    name: ${PROXY_NET_NETWORK_NAME}
     external: true

@@ -151,3 +151,42 @@
 - **Verification:** Workflow скрипт тепер проходить targets-check лише коли `node-exporter` і `victoriametrics` мають `health=up`, та не падає на коротких race conditions після deploy.
 - **Risks:** Потрібна наявність `jq` на remote host (використовувався і раніше в інших перевірках проєкту).
 - **Rollback:** Повернути попередній блок `targets checks` з `grep` у `.github/workflows/deploy-monitoring.yml`.
+
+## [2026-03-15] — Compose drift recovery: restore `proxy-net`, remove `cloudflared`
+
+- **Context:** У робочому `docker-compose.yml` випадково повернувся сервіс `cloudflared`, зникла мережа `proxy-net`, і Grafana втратила Traefik labels/підключення до central ingress.
+- **Change:**
+	- Оновлено `docker-compose.yml`:
+		- видалено сервіс `cloudflared`;
+		- повернуто `proxy-net` в секцію `networks` (external `${PROXY_NET_NETWORK_NAME}`);
+		- `grafana` знову підключена до `monitoring_net + proxy-net` і має Traefik labels;
+		- `victoriametrics` знову підключено до `proxy-net` (для scrape `traefik:8082`) і збережено `--maxLabelsPerTimeseries=100`.
+	- Оновлено `.env.example`:
+		- прибрано `CLOUDFLARED_IMAGE`/`CLOUDFLARE_TUNNEL_TOKEN`;
+		- додано `PROXY_NET_NETWORK_NAME=proxy-net`;
+		- `DSPACENET_NETWORK_NAME` вирівняно до `dspace9_dspacenet`.
+- **Verification:** `docker compose config -q` проходить; `docker compose up -d --remove-orphans` видаляє reintroduced `cloudflared` і застосовує мережеву модель з central Traefik.
+- **Risks:** Якщо external network `proxy-net` відсутня на хості, старт `grafana`/`victoriametrics` завершиться помилкою до створення мережі.
+- **Rollback:** Тимчасово прибрати `proxy-net` зі сервісів/мереж у `docker-compose.yml` і повернути попередню версію файлу з Git history.
+
+## [2026-03-15] — Grafana UX fix: Traefik panels + folder duplication
+
+- **Context:**
+	- На дашборді `KDI Traefik v3 Overview` не відображались дані в панелях `Apdex score` та `Most requested services`.
+	- Після рестартів Grafana знову з'являлися зайві папки `KDI`.
+- **Change:**
+	- Оновлено `grafana/dashboards/traefik-v3-official-17346.json`:
+		- `Apdex score`: переведено з `entrypoint` latency-метрик на `service` latency-метрики (фактично присутні у вашому Traefik scrape), та прибрано жорсткий фільтр `code="200"`.
+		- `Most requested services`: спрощено PromQL (без `label_replace` і булевого `> 0`) для надійного відображення топу сервісів.
+		- Змінні dashboard:
+			- `entrypoint`: джерело змінено на `traefik_entrypoint_requests_total` з виключенням `metrics|traefik`, додано `allValue`.
+			- `service`: додано `allValue` для стабільної all-вибірки docker-сервісів.
+	- Уніфіковано provisioning folder path до `KDI-P0` у файлах:
+		- `grafana/provisioning/dashboards/dashboards.yml`
+		- `grafana/provisioning/alerting/alert-rules.yml`
+		- `grafana/provisioning/alerting/backup-alerts.yml`
+		- `grafana/provisioning/alerting/synthetic-alerts.yml`
+		- `grafana/provisioning/alerting/website-alerts.yml`
+- **Verification:** Після рестарту Grafana дашборд Traefik отримує дані для проблемних панелей; у `GET /api/folders` залишається одна цільова папка `KDI-P0`.
+- **Risks:** Потрібно синхронно тримати однакову назву folder у dashboard/alerting provisioning; розсинхрон поверне дублікати.
+- **Rollback:** Повернути попередні версії dashboard JSON/provisioning YAML з Git history і перезапустити `grafana`.

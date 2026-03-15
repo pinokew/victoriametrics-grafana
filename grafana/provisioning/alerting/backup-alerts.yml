@@ -3,7 +3,7 @@ apiVersion: 1
 groups:
   - orgId: 1
     name: phase5-backup-restore-alerting
-    folder: KDI / P0
+    folder: KDI-P0
     interval: 1m
     rules:
       - uid: vm-backup-stale

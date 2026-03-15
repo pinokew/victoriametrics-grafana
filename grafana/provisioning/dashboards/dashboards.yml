@@ -3,7 +3,7 @@ apiVersion: 1
 providers:
   - name: kdi-phase3-dashboards
     orgId: 1
-    folder: KDI / P0
+    folder: KDI-P0
     type: file
     disableDeletion: false
     updateIntervalSeconds: 30

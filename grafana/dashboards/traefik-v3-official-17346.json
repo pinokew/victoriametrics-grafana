@@ -329,7 +329,7 @@
             "uid": "victoriametrics"
           },
           "editorMode": "code",
-          "expr": "(sum(rate(traefik_entrypoint_request_duration_seconds_bucket{le=\"0.3\",code=\"200\",entrypoint=~\"$entrypoint\"}[$interval])) by (method) + \n sum(rate(traefik_entrypoint_request_duration_seconds_bucket{le=\"1.2\",code=\"200\",entrypoint=~\"$entrypoint\"}[$interval])) by (method)) / 2 / \n sum(rate(traefik_entrypoint_request_duration_seconds_count{code=\"200\",entrypoint=~\"$entrypoint\"}[$interval])) by (method)\n",
+          "expr": "(sum(rate(traefik_service_request_duration_seconds_bucket{le=\"0.3\",service=~\"$service\",protocol=\"http\"}[$interval])) by (method) + \n sum(rate(traefik_service_request_duration_seconds_bucket{le=\"1.2\",service=~\"$service\",protocol=\"http\"}[$interval])) by (method)) / 2 / \n sum(rate(traefik_service_request_duration_seconds_count{service=~\"$service\",protocol=\"http\"}[$interval])) by (method)\n",
           "legendFormat": "{{method}}",
           "range": true,
           "refId": "A"
@@ -595,8 +595,8 @@
             "uid": "victoriametrics"
           },
           "editorMode": "code",
-          "expr": "topk(15,\n    label_replace(\n        sum by (service,code) \n          (rate(traefik_service_requests_total{service=~\"$service.*\",protocol=\"http\"}[$interval])) > 0,\n        \"service\", \"$1\", \"service\", \"([^-]+-[^-]+).*\")\n)",
-          "legendFormat": "[{{code}}] on {{service}}",
+          "expr": "topk(15, sum by (service, code) (rate(traefik_service_requests_total{service=~\"$service\",protocol=\"http\"}[$interval])))",
+          "legendFormat": "[{{code}}] {{service}}",
           "range": true,
           "refId": "A"
         }
@@ -1511,14 +1511,15 @@
           "type": "prometheus",
           "uid": "victoriametrics"
         },
-        "definition": "label_values(traefik_open_connections, entrypoint)",
+        "allValue": ".*",
+        "definition": "label_values(traefik_entrypoint_requests_total{entrypoint!~\"metrics|traefik\"}, entrypoint)",
         "hide": 0,
         "includeAll": true,
         "multi": false,
         "name": "entrypoint",
         "options": [],
         "query": {
-          "query": "label_values(traefik_open_connections, entrypoint)",
+          "query": "label_values(traefik_entrypoint_requests_total{entrypoint!~\"metrics|traefik\"}, entrypoint)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
@@ -1533,6 +1534,7 @@
           "type": "prometheus",
           "uid": "victoriametrics"
         },
+        "allValue": ".*@docker",
         "definition": "label_values(traefik_service_requests_total{service=~\".*@docker\"}, service)",
         "hide": 0,
         "includeAll": true,

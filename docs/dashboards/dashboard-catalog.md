@@ -25,5 +25,5 @@
 
 ## Перевірка
 1. `docker compose restart grafana`
-2. Відкрити Grafana → Dashboards → папка `KDI / P0`.
+2. Відкрити Grafana → Dashboards → папка `KDI-P0`.
 3. Переконатись, що завантажені всі 5 dashboards і панелі показують дані з datasource `VictoriaMetrics`.

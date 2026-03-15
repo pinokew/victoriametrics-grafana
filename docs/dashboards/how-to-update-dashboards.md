@@ -13,7 +13,7 @@
    - перевірити, що немає placeholder-значень `${...}`
 4. Оновити `docs/dashboards/dashboard-catalog.md`.
 5. Перезапустити Grafana: `docker compose restart grafana`.
-6. Перевірити появу dashboard у папці `KDI / P0`.
+6. Перевірити появу dashboard у папці `KDI-P0`.
 
 ## Локальна перевірка перед commit
 ```bash
