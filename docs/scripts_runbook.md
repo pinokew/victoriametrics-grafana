@@ -34,6 +34,7 @@ bash scripts/check-internal-ports-policy.sh
 - Перевіряє env-файл, оновлює Swarm secrets через Ansible якщо задано `INFRA_REPO_PATH`.
 - Створює/перевіряє overlay network `MONITORING_NETWORK_NAME`.
 - Перед deploy запускає `init-volumes.sh` і `render-scrape-config.sh`.
+- Рендерить immutable Swarm secrets через `render-versioned-env-secret.sh` і дописує generated `*_SECRET_NAME` у тимчасовий decrypted env-файл.
 - Рендерить merged manifest через `docker compose --env-file ... config` і виконує `docker stack deploy`.
 
 #### Manual execution
@@ -80,6 +81,28 @@ ORCHESTRATOR_ENV_FILE=/tmp/env.decrypted bash scripts/init-volumes.sh
 ```bash
 ORCHESTRATOR_ENV_FILE=/tmp/env.decrypted bash scripts/render-scrape-config.sh
 bash scripts/render-scrape-config.sh --env-file .env
+```
+
+### `scripts/render-versioned-env-secret.sh`
+
+#### Бізнес-логіка
+
+- Створює Docker secrets з hash-based назвами для Swarm runtime secrets.
+- Рендерить:
+  `GRAFANA_ADMIN_PASSWORD_SECRET_NAME`,
+  `MS365_SMTP_PASSWORD_SECRET_NAME`,
+  `MARIADB_EXPORTER_PASSWORD_SECRET_NAME`,
+  `MATOMO_MARIADB_EXPORTER_PASSWORD_SECRET_NAME`.
+- Читає значення з `ORCHESTRATOR_ENV_FILE` або `--env-file` без `source`.
+- Не друкує значення секретів, тільки generated secret names.
+
+#### Manual execution
+
+```bash
+ORCHESTRATOR_ENV_FILE=/tmp/env.decrypted \
+  bash scripts/render-versioned-env-secret.sh \
+  --env-file /tmp/env.decrypted \
+  --write-env-file /tmp/env.decrypted
 ```
 
 ### `scripts/collect-matomo-archiving-metric.sh`

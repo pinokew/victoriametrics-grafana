@@ -224,6 +224,11 @@ deploy_swarm() {
   log "Rendering VictoriaMetrics scrape config"
   ORCHESTRATOR_ENV_FILE="${ENV_FILE}" bash scripts/render-scrape-config.sh
 
+  log "Rendering versioned Swarm secrets"
+  ORCHESTRATOR_ENV_FILE="${ENV_FILE}" bash scripts/render-versioned-env-secret.sh \
+    --env-file "${ENV_FILE}" \
+    --write-env-file "${ENV_FILE}"
+
   log "Rendering Swarm manifest (stack=${STACK_NAME}, env_file=${ENV_FILE})"
   docker compose --env-file "${ENV_FILE}" \
     -f "${compose_file}" \

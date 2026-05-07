@@ -146,3 +146,16 @@
 - Guard smoke-test з `STACK_NAME=victoriametrics-grafana` зупиняється до init/deploy і показує конфлікт із `monitoring_victoriametrics`.
 - **Risks:** Дубльований stack `victoriametrics-grafana` ще потрібно прибрати окремою явною операцією, щоб не лишати зайві сервіси.
 - **Rollback:** Відкотити guard/default stack name і повернути попередній приклад у `docs/scripts_runbook.md`.
+
+## [2026-05-07] — Swarm secrets: hash-based versioned secret render
+- **Context:** Swarm manifest використовує external Docker secrets через `*_SECRET_NAME`, але deploy path не створював hash-versioned secret names безпосередньо з decrypted orchestrator env.
+- **Change:**
+- Додано `scripts/render-versioned-env-secret.sh` за патерном DSpace:
+	- створює immutable Docker secrets з 12-символьним sha256 suffix;
+	- рендерить secret names для Grafana admin password, Grafana SMTP password, Koha MariaDB exporter password і Matomo MariaDB exporter password;
+	- оновлює generated `*_SECRET_NAME` у тимчасовому decrypted env-файлі без друку значень секретів.
+- `scripts/deploy-orchestrator-swarm.sh` тепер викликає render-versioned secrets після `render-scrape-config.sh` і до `docker compose config`.
+- Оновлено `docs/scripts_runbook.md` з manual execution для нового скрипта.
+- **Verification:** `bash -n` для змінених shell-скриптів; smoke-test нового render script на тимчасовому env-файлі з fake Docker CLI підтвердив hash suffix для всіх 4 generated secret names і оновлення env-файлу; `docker compose --env-file ... config` підтвердив підстановку versioned external secret names у Swarm manifest.
+- **Risks:** Скрипт вимагає непорожні значення всіх 4 secret values, бо `docker-compose.swarm.yml` завжди посилається на відповідні external secrets.
+- **Rollback:** Видалити `scripts/render-versioned-env-secret.sh`, прибрати його виклик з `deploy-orchestrator-swarm.sh` і відкотити runbook/changelog.
