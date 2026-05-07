@@ -2,34 +2,31 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$ROOT_DIR/.env"
+SCRIPT_DIR="$ROOT_DIR/scripts"
+ENV_FILE_ARG=""
 DRY_RUN="false"
 
-if [[ "${1:-}" == "--dry-run" ]]; then
-  DRY_RUN="true"
-fi
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --dry-run)
+      DRY_RUN="true"
+      ;;
+    --env-file)
+      ENV_FILE_ARG="${2:-}"
+      shift
+      ;;
+    *)
+      echo "ERROR: Unexpected argument: $1"
+      exit 1
+      ;;
+  esac
+  shift
+done
 
-read_env_or_default() {
-  local key="$1"
-  local default_value="$2"
-  local env_value="${!key:-}"
+# shellcheck source=scripts/lib/orchestrator-env.sh
+. "$SCRIPT_DIR/lib/orchestrator-env.sh"
 
-  if [[ -n "$env_value" ]]; then
-    printf '%s\n' "$env_value"
-    return 0
-  fi
-
-  if [[ -f "$ENV_FILE" ]]; then
-    local line
-    line="$(grep -E "^${key}=" "$ENV_FILE" | tail -n1 || true)"
-    if [[ -n "$line" ]]; then
-      printf '%s\n' "${line#*=}"
-      return 0
-    fi
-  fi
-
-  printf '%s\n' "$default_value"
-}
+ENV_FILE="$(resolve_orchestrator_env_file "$ROOT_DIR" "$ENV_FILE_ARG")"
 
 abs_path() {
   local path="$1"
@@ -56,7 +53,7 @@ run_cmd() {
   "$@"
 }
 
-DOCKER_IMAGE="$(read_env_or_default INIT_VOLUMES_HELPER_IMAGE "alpine:3.20")"
+DOCKER_IMAGE="$(read_env_or_default INIT_VOLUMES_HELPER_IMAGE "$ENV_FILE" "alpine:3.20")"
 HAS_DOCKER=false
 CAN_SUDO_NOPASS=false
 
@@ -192,12 +189,12 @@ run_chmod() {
   esac
 }
 
-VM_DATA_DIR="$(read_env_or_default VM_DATA_DIR "./.data/victoriametrics")"
-VM_BACKUP_DIR="$(read_env_or_default VM_BACKUP_DIR "./.backups/victoriametrics")"
-GRAFANA_DATA_DIR="$(read_env_or_default GRAFANA_DATA_DIR "./.data/grafana")"
-GRAFANA_LOGS_DIR="$(read_env_or_default GRAFANA_LOGS_DIR "./.data/grafana-logs")"
-NODE_EXPORTER_TEXTFILE_DIR="$(read_env_or_default NODE_EXPORTER_TEXTFILE_DIR "./.data/node-exporter-textfile")"
-GRAFANA_CONTAINER_USER="$(read_env_or_default GRAFANA_CONTAINER_USER "0")"
+VM_DATA_DIR="$(read_env_or_default VM_DATA_DIR "$ENV_FILE" "./.data/victoriametrics")"
+VM_BACKUP_DIR="$(read_env_or_default VM_BACKUP_DIR "$ENV_FILE" "./.backups/victoriametrics")"
+GRAFANA_DATA_DIR="$(read_env_or_default GRAFANA_DATA_DIR "$ENV_FILE" "./.data/grafana")"
+GRAFANA_LOGS_DIR="$(read_env_or_default GRAFANA_LOGS_DIR "$ENV_FILE" "./.data/grafana-logs")"
+NODE_EXPORTER_TEXTFILE_DIR="$(read_env_or_default NODE_EXPORTER_TEXTFILE_DIR "$ENV_FILE" "./.data/node-exporter-textfile")"
+GRAFANA_CONTAINER_USER="$(read_env_or_default GRAFANA_CONTAINER_USER "$ENV_FILE" "0")"
 
 if [[ "$GRAFANA_CONTAINER_USER" == *:* ]]; then
   GRAFANA_OWNER="$GRAFANA_CONTAINER_USER"

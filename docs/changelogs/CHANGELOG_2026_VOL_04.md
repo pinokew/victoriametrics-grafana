@@ -115,3 +115,34 @@
 - Після відновлення метрики через `test-restore.sh --dry-run` у VictoriaMetrics знову заінжестився свіжий timestamp `1773916712`.
 - **Risks:** Під час тестового вікна можливі тимчасові notification send events по правилу `matomo-restore-smoke-stale`.
 - **Rollback:** Видалити alert з `matomo.yml` та provisioning, відкотити документацію і за потреби повторно згенерувати штатну metric через `./scripts/test-restore.sh --dry-run`.
+
+## [2026-04-26] — Scripts refactoring: Swarm + SOPS env contracts
+- **Context:** Поточна ітерація рефакторингу `/opt/victoriametrics-grafana/` під єдиний Swarm + SOPS патерн після успішного проходу в `/opt/Matomo-analytics/`.
+- **Change:**
+- Додано helper-и `scripts/lib/orchestrator-env.sh`, `scripts/lib/autonomous-env.sh`, `scripts/lib/docker-runtime.sh`.
+- Переведено deploy-adjacent скрипти на читання `ORCHESTRATOR_ENV_FILE` / `--env-file` без `source`/`eval`.
+- `scripts/render-scrape-config.sh` тепер рендерить у tmp-файл, звіряє з існуючим `scrape-config.yml` через `cmp`/checksum і не перезаписує файл без змін.
+- Переведено autonomous backup/restore/smoke restore на `SERVER_ENV` / `--env` + SOPS decrypt у `/dev/shm`.
+- `scripts/deploy-orchestrator-swarm.sh` запускає `init-volumes.sh` і `render-scrape-config.sh` перед render/deploy manifest.
+- Додано `docs/scripts_runbook.md`, оновлено `CHANGELOG.md` на фактичний шлях `docs/changelogs/`.
+- **Verification:**
+- `bash -n` для змінених shell-скриптів і helper-ів пройшов успішно.
+- Smoke-перевірка `render-scrape-config.sh` з тимчасовим env-файлом показала no-op: існуючий config не перезаписано, checksum збігається.
+- Smoke-перевірки helper-ів `read_env_var` і `resolve_autonomous_environment` пройшли успішно.
+- **Risks:** Реальні backup/restore і Swarm deploy не запускалися в межах цієї ітерації, щоб не змінювати runtime-інфраструктуру без окремого підтвердження.
+- **Rollback:** Відкотити зміни у `scripts/lib/*`, змінених `scripts/*.sh`, `docs/scripts_runbook.md`, `CHANGELOG.md` і цей запис changelog.
+
+## [2026-04-26] — Fix deploy runbook stack name + duplicate storage guard
+- **Context:** Після ручного запуску прикладу з `docs/scripts_runbook.md` було створено другий Swarm stack `victoriametrics-grafana`, тоді як фактичний production stack уже працює як `monitoring`. Новий `victoriametrics-grafana_victoriametrics` впав з `cannot acquire lock on file "/storage/flock.lock"`, бо `monitoring_victoriametrics` уже тримав той самий `VM_DATA_DIR`.
+- **Change:**
+- Виправлено default `STACK_NAME` у `scripts/deploy-orchestrator-swarm.sh` і `scripts/lib/docker-runtime.sh` на `monitoring`.
+- Виправлено приклад deploy у `docs/scripts_runbook.md` на `STACK_NAME=monitoring`.
+- Додано guard у `deploy-orchestrator-swarm.sh`: перед deploy він перевіряє Swarm services і відмовляється деплоїти stack, якщо інший stack уже використовує той самий VictoriaMetrics `/storage`.
+- **Verification:**
+- `docker logs` failed container підтвердив причину: `cannot acquire lock on file "/storage/flock.lock"`.
+- `docker service inspect monitoring_victoriametrics` підтвердив, що існуючий stack `monitoring` використовує `/srv/victoriametrics-grafana/.data/victoriametrics`.
+- `docker run ... --promscrape.config=/etc/vm/scrape-config.yml --dryRun` підтвердив валідність scrape config.
+- `bash -n scripts/deploy-orchestrator-swarm.sh scripts/lib/docker-runtime.sh` пройшов успішно.
+- Guard smoke-test з `STACK_NAME=victoriametrics-grafana` зупиняється до init/deploy і показує конфлікт із `monitoring_victoriametrics`.
+- **Risks:** Дубльований stack `victoriametrics-grafana` ще потрібно прибрати окремою явною операцією, щоб не лишати зайві сервіси.
+- **Rollback:** Відкотити guard/default stack name і повернути попередній приклад у `docs/scripts_runbook.md`.

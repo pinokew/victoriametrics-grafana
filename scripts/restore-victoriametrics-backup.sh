@@ -2,15 +2,20 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$ROOT_DIR/scripts"
 COMPOSE_FILE="$ROOT_DIR/docker-compose.yml"
-ENV_FILE="$ROOT_DIR/.env"
 
 DRY_RUN="false"
 CONFIRM="false"
 BACKUP_ARG=""
+ENVIRONMENT_ARG=""
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
+    --env)
+      ENVIRONMENT_ARG="${2:-}"
+      shift
+      ;;
     --dry-run)
       DRY_RUN="true"
       ;;
@@ -29,6 +34,13 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
+# shellcheck source=scripts/lib/autonomous-env.sh
+. "$SCRIPT_DIR/lib/autonomous-env.sh"
+# shellcheck source=scripts/lib/docker-runtime.sh
+. "$SCRIPT_DIR/lib/docker-runtime.sh"
+
+load_autonomous_env "$ROOT_DIR" "$ENVIRONMENT_ARG"
+
 read_env_or_default() {
   local key="$1"
   local default_value="$2"
@@ -37,15 +49,6 @@ read_env_or_default() {
   if [[ -n "$env_value" ]]; then
     printf '%s\n' "$env_value"
     return 0
-  fi
-
-  if [[ -f "$ENV_FILE" ]]; then
-    local line
-    line="$(grep -E "^${key}=" "$ENV_FILE" | tail -n1 || true)"
-    if [[ -n "$line" ]]; then
-      printf '%s\n' "${line#*=}"
-      return 0
-    fi
   fi
 
   printf '%s\n' "$default_value"
@@ -137,7 +140,7 @@ if [[ ! -d "$VM_DATA_ABS" ]]; then
 fi
 
 echo "Stopping victoriametrics before restore"
-run_cmd docker compose -f "$COMPOSE_FILE" stop victoriametrics
+run_cmd docker_runtime_stop_service victoriametrics "$COMPOSE_FILE"
 
 echo "Clearing VM data directory: $VM_DATA_ABS"
 run_cmd docker run --rm -v "$VM_DATA_ABS:/target" alpine:3.20 \
@@ -151,7 +154,7 @@ run_cmd docker run --rm \
   sh -c "tar -C /target -xzf /backup/$(basename "$BACKUP_PATH")"
 
 echo "Starting victoriametrics after restore"
-run_cmd docker compose -f "$COMPOSE_FILE" up -d victoriametrics
+run_cmd docker_runtime_start_service victoriametrics "$COMPOSE_FILE"
 
 if [[ "$DRY_RUN" == "true" ]]; then
   echo "Restore dry-run completed."
@@ -165,5 +168,5 @@ if wait_for_http "http://127.0.0.1:${VM_HOST_PORT}/health" 30 2; then
 fi
 
 echo "ERROR: VictoriaMetrics health check failed after restore"
-docker compose -f "$COMPOSE_FILE" logs victoriametrics --tail 200 || true
+docker_runtime_logs victoriametrics "$COMPOSE_FILE"
 exit 1

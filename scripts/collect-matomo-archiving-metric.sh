@@ -2,29 +2,27 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$ROOT_DIR/.env"
+SCRIPT_DIR="$ROOT_DIR/scripts"
+ENV_FILE_ARG=""
 
-read_env_or_default() {
-  local key="$1"
-  local default_value="$2"
-  local env_value="${!key:-}"
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --env-file)
+      ENV_FILE_ARG="${2:-}"
+      shift
+      ;;
+    *)
+      echo "ERROR: Unexpected argument: $1"
+      exit 1
+      ;;
+  esac
+  shift
+done
 
-  if [[ -n "$env_value" ]]; then
-    printf '%s\n' "$env_value"
-    return 0
-  fi
+# shellcheck source=scripts/lib/orchestrator-env.sh
+. "$SCRIPT_DIR/lib/orchestrator-env.sh"
 
-  if [[ -f "$ENV_FILE" ]]; then
-    local line
-    line="$(grep -E "^${key}=" "$ENV_FILE" | tail -n1 || true)"
-    if [[ -n "$line" ]]; then
-      printf '%s\n' "${line#*=}"
-      return 0
-    fi
-  fi
-
-  printf '%s\n' "$default_value"
-}
+ENV_FILE="$(resolve_orchestrator_env_file "$ROOT_DIR" "$ENV_FILE_ARG")"
 
 abs_path() {
   local path="$1"
@@ -35,8 +33,8 @@ abs_path() {
   fi
 }
 
-NODE_EXPORTER_TEXTFILE_DIR="$(read_env_or_default NODE_EXPORTER_TEXTFILE_DIR "./.data/node-exporter-textfile")"
-MATOMO_CRON_CONTAINER_NAME="$(read_env_or_default MATOMO_CRON_CONTAINER_NAME "matomo-cron")"
+NODE_EXPORTER_TEXTFILE_DIR="$(read_env_or_default NODE_EXPORTER_TEXTFILE_DIR "$ENV_FILE" "./.data/node-exporter-textfile")"
+MATOMO_CRON_CONTAINER_NAME="$(read_env_or_default MATOMO_CRON_CONTAINER_NAME "$ENV_FILE" "matomo-cron")"
 TEXTFILE_DIR_ABS="$(abs_path "$NODE_EXPORTER_TEXTFILE_DIR")"
 collect_timestamp="$(date +%s)"
 success_timestamp="0"

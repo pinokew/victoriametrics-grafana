@@ -2,7 +2,32 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$ROOT_DIR/.env"
+SCRIPT_DIR="$ROOT_DIR/scripts"
+ENVIRONMENT_ARG=""
+BACKUP_ARG=""
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --env)
+      ENVIRONMENT_ARG="${2:-}"
+      shift
+      ;;
+    *)
+      if [[ -z "$BACKUP_ARG" ]]; then
+        BACKUP_ARG="$1"
+      else
+        echo "ERROR: Unexpected argument: $1"
+        exit 1
+      fi
+      ;;
+  esac
+  shift
+done
+
+# shellcheck source=scripts/lib/autonomous-env.sh
+. "$SCRIPT_DIR/lib/autonomous-env.sh"
+
+load_autonomous_env "$ROOT_DIR" "$ENVIRONMENT_ARG"
 
 read_env_or_default() {
   local key="$1"
@@ -12,15 +37,6 @@ read_env_or_default() {
   if [[ -n "$env_value" ]]; then
     printf '%s\n' "$env_value"
     return 0
-  fi
-
-  if [[ -f "$ENV_FILE" ]]; then
-    local line
-    line="$(grep -E "^${key}=" "$ENV_FILE" | tail -n1 || true)"
-    if [[ -n "$line" ]]; then
-      printf '%s\n' "${line#*=}"
-      return 0
-    fi
   fi
 
   printf '%s\n' "$default_value"
@@ -71,7 +87,7 @@ EOF
     sh -c "cat > /metrics/$METRICS_FILE_NAME"
 }
 
-backup_path="${1:-}"
+backup_path="$BACKUP_ARG"
 if [[ -n "$backup_path" ]]; then
   if [[ "$backup_path" != /* ]]; then
     backup_path="$(abs_path "$backup_path")"

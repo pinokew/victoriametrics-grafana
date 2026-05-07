@@ -2,8 +2,30 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$ROOT_DIR/scripts"
 COMPOSE_FILE="$ROOT_DIR/docker-compose.yml"
-ENV_FILE="$ROOT_DIR/.env"
+ENVIRONMENT_ARG=""
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --env)
+      ENVIRONMENT_ARG="${2:-}"
+      shift
+      ;;
+    *)
+      echo "ERROR: Unexpected argument: $1"
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+# shellcheck source=scripts/lib/autonomous-env.sh
+. "$SCRIPT_DIR/lib/autonomous-env.sh"
+# shellcheck source=scripts/lib/docker-runtime.sh
+. "$SCRIPT_DIR/lib/docker-runtime.sh"
+
+load_autonomous_env "$ROOT_DIR" "$ENVIRONMENT_ARG"
 
 read_env_or_default() {
   local key="$1"
@@ -13,15 +35,6 @@ read_env_or_default() {
   if [[ -n "$env_value" ]]; then
     printf '%s\n' "$env_value"
     return 0
-  fi
-
-  if [[ -f "$ENV_FILE" ]]; then
-    local line
-    line="$(grep -E "^${key}=" "$ENV_FILE" | tail -n1 || true)"
-    if [[ -n "$line" ]]; then
-      printf '%s\n' "${line#*=}"
-      return 0
-    fi
   fi
 
   printf '%s\n' "$default_value"
@@ -89,7 +102,7 @@ EOF
 }
 
 restart_vm() {
-  docker compose -f "$COMPOSE_FILE" up -d victoriametrics >/dev/null 2>&1 || true
+  docker_runtime_start_service victoriametrics "$COMPOSE_FILE" >/dev/null 2>&1 || true
 }
 
 cleanup() {
@@ -104,7 +117,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "Stopping victoriametrics for consistent backup..."
-docker compose -f "$COMPOSE_FILE" stop victoriametrics
+docker_runtime_stop_service victoriametrics "$COMPOSE_FILE"
 vm_stopped="1"
 
 echo "Creating backup archive: $archive"
@@ -115,7 +128,7 @@ docker run --rm \
   sh -c "set -e; tar -C /source -czf /backup/$(basename "$archive") .; cd /backup; sha256sum $(basename "$archive") > $(basename "$checksum_file")"
 
 echo "Starting victoriametrics back..."
-docker compose -f "$COMPOSE_FILE" up -d victoriametrics
+docker_runtime_start_service victoriametrics "$COMPOSE_FILE"
 vm_stopped="0"
 backup_status="1"
 success_timestamp="$(date +%s)"

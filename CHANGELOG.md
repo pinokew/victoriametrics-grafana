@@ -1,17 +1,17 @@
 # CHANGELOG Index
 
-Це індекс томів changelog. Детальні записи ведуться у `CHANGELOGS/`.
+Це індекс томів changelog. Детальні записи ведуться у `docs/changelogs/`.
 
 ## Поточний активний том
 
-- `CHANGELOGS/CHANGELOG_2026_VOL_04.md`
+- `docs/changelogs/CHANGELOG_2026_VOL_04.md`
 
 ## Томи
 
-- `CHANGELOGS/CHANGELOG_2026_VOL_01.md` — archived, старт Phase 0 (Pre-Flight) до soft limit 300 рядків
-- `CHANGELOGS/CHANGELOG_2026_VOL_02.md` — archived
-- `CHANGELOGS/CHANGELOG_2026_VOL_03.md` — archived
-- `CHANGELOGS/CHANGELOG_2026_VOL_04.md` — active, продовження після ротації тому
+- `docs/changelogs/CHANGELOG_2026_VOL_01.md` — archived, старт Phase 0 (Pre-Flight) до soft limit 300 рядків
+- `docs/changelogs/CHANGELOG_2026_VOL_02.md` — archived
+- `docs/changelogs/CHANGELOG_2026_VOL_03.md` — archived
+- `docs/changelogs/CHANGELOG_2026_VOL_04.md` — active, продовження після ротації тому
 
 
 ## Політика ротації
@@ -24,6 +24,6 @@
 
 ## Формат імені файлу
 
-`CHANGELOGS/CHANGELOG_<YEAR>_VOL_<NN>.md`
+`docs/changelogs/CHANGELOG_<YEAR>_VOL_<NN>.md`
 
-Приклад: `CHANGELOGS/CHANGELOG_2026_VOL_02.md`
+Приклад: `docs/changelogs/CHANGELOG_2026_VOL_02.md`
