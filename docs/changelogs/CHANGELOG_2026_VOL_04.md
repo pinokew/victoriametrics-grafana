@@ -231,12 +231,12 @@
 - **Context:** Cloudflare Tunnel винесений у зовнішній edge stack, до якого підключений Traefik; контейнер `cloudflared` не повертаємо в monitoring compose/swarm stack.
 - **Change:**
 - Додано env-контракт у `.env.example`:
-	- `CLOUDFLARE_TUNNEL_METRICS_TARGET=cloudflared:2000`
+	- `CLOUDFLARE_TUNNEL_METRICS_TARGET=cf_tunnel_tunnel:2000`
 	- `CLOUDFLARE_TUNNEL_NAME=grafana`
 - Оновлено `scripts/render-scrape-config.sh`: читає, валідує `host:port` target без URL-схеми і підставляє Cloudflare Tunnel labels.
 - Оновлено `victoria-metrics/scrape-config.tmpl.yml`: додано scrape job `cloudflare-tunnel` з labels `service="cloudflare"`, `component="tunnel"`.
 - Оновлено label schema ADR і документацію для external edge stack моделі.
-- **Verification:** `bash -n scripts/render-scrape-config.sh` і `git diff --check` успішні; render smoke у тимчасовій копії через `.env.example` створив job `cloudflare-tunnel` з target `cloudflared:2000` і labels `service="cloudflare"`, `component="tunnel"`, `tunnel="grafana"`.
+- **Verification:** `bash -n scripts/render-scrape-config.sh` і `git diff --check` успішні; render smoke у тимчасовій копії через `.env.example` створив job `cloudflare-tunnel` з target `cf_tunnel_tunnel:2000` і labels `service="cloudflare"`, `component="tunnel"`, `tunnel="grafana"`.
 - **Risks:** До наступного deploy/render потрібно додати `CLOUDFLARE_TUNNEL_METRICS_TARGET` і `CLOUDFLARE_TUNNEL_NAME` у реальний decrypted env (`env.*.enc` після розшифрування), інакше `render-scrape-config.sh` очікувано зупиниться.
 - **Rollback:** Видалити Cloudflare env-змінні, scrape job, label schema/doc updates і перерендерити `victoria-metrics/scrape-config.yml`.
 
@@ -248,7 +248,7 @@
 	- scrape status;
 	- HA connections;
 	- request/error rate;
-	- active streams і concurrent requests;
+	- concurrent requests;
 	- QUIC RTT і lost packets;
 	- current edge locations;
 	- `cloudflared` build info.
@@ -279,3 +279,20 @@
 - **Verification:** `rg` підтвердив, що deployment doc більше не містить `phase1-edge`, `CLOUDFLARE_TUNNEL_TOKEN` або команд запуску `cloudflared` з цього repo; `git diff --check` успішний.
 - **Risks:** Реальні інструкції запуску зовнішнього edge stack лишаються поза цим репозиторієм.
 - **Rollback:** Повернути попередній текст розділу Cloudflare Tunnel у deployment doc.
+
+## [2026-05-08] — Cloudflare Tunnel metrics target: fix Swarm DNS name
+- **Context:** Dashboard `KDI Cloudflare Tunnel Overview` з'явився у Grafana, але не показував дані. Runtime scrape config використовував target `cloudflared:2000`, який не резолвиться з контейнера VictoriaMetrics у Swarm.
+- **Root cause:** Реальний external edge service у Swarm має DNS name `cf_tunnel_tunnel` у мережі `proxy-net`.
+- **Change:**
+- Оновлено `.env.example`, deployment doc і generated `victoria-metrics/scrape-config.yml` на `CLOUDFLARE_TUNNEL_METRICS_TARGET=cf_tunnel_tunnel:2000`.
+- `env.dev.enc` / `env.prod.enc` не оновлено автоматично, бо SOPS update command не був дозволений; їх потрібно синхронізувати вручну.
+- **Verification:** З контейнера `monitoring_victoriametrics` endpoint `http://cf_tunnel_tunnel:2000/metrics` повертає `cloudflared_tunnel_*`, `quic_client_*` і `build_info`; endpoint `http://cloudflared:2000/metrics` повертає DNS error `bad address`.
+- **Risks:** Якщо `env.*.enc` лишиться зі старим `cloudflared:2000`, наступний render/deploy поверне неробочий target.
+- **Rollback:** Повернути target на попереднє значення тільки якщо в edge stack буде доданий alias `cloudflared` у спільній мережі.
+
+## [2026-05-08] — Cloudflare Tunnel dashboard: remove absent active streams metric
+- **Context:** Після перезапуску `monitoring_victoriametrics` target `cloudflare-tunnel` став `1/1 up`, але поточний `cloudflared` metrics endpoint не віддає `cloudflared_tunnel_active_streams`.
+- **Change:** Оновлено `grafana/dashboards/cloudflare-tunnel-overview.json`: панель `Active streams and concurrent requests` перейменовано на `Concurrent requests` і залишено тільки фактичну метрику `cloudflared_tunnel_concurrent_requests_per_tunnel`.
+- **Verification:** Runtime query для `cloudflared_tunnel_active_streams{job="cloudflare-tunnel"}` повернув порожній result; `cloudflared_tunnel_concurrent_requests_per_tunnel`, `cloudflared_tunnel_ha_connections`, `cloudflared_tunnel_total_requests`, `cloudflared_tunnel_request_errors`, `cloudflared_tunnel_server_locations`, `quic_client_latest_rtt`, `quic_client_smoothed_rtt`, `quic_client_lost_packets` і `build_info` повертають дані.
+- **Risks:** Якщо в майбутній версії `cloudflared` метрика `active_streams` повернеться, її можна додати назад окремою панеллю.
+- **Rollback:** Повернути попередній query `cloudflared_tunnel_active_streams` у dashboard.

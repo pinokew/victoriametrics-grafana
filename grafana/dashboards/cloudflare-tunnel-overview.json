@@ -500,26 +500,14 @@
             "uid": "victoriametrics"
           },
           "editorMode": "code",
-          "expr": "sum by (tunnel) (cloudflared_tunnel_active_streams{job=\"cloudflare-tunnel\",env=\"prod\",tunnel=~\"$tunnel\",instance=~\"$instance\"})",
-          "instant": false,
-          "legendFormat": "{{tunnel}} active streams",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "victoriametrics"
-          },
-          "editorMode": "code",
           "expr": "sum by (tunnel) (cloudflared_tunnel_concurrent_requests_per_tunnel{job=\"cloudflare-tunnel\",env=\"prod\",tunnel=~\"$tunnel\",instance=~\"$instance\"})",
           "instant": false,
           "legendFormat": "{{tunnel}} concurrent requests",
           "range": true,
-          "refId": "B"
+          "refId": "A"
         }
       ],
-      "title": "Active streams and concurrent requests",
+      "title": "Concurrent requests",
       "type": "timeseries"
     },
     {

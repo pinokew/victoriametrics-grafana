@@ -93,7 +93,7 @@ CLOUDFLARE_GRAFANA_HOSTNAME=grafana.example.com
 3. Для моніторингу зовнішнього tunnel metrics endpoint вказати target у decrypted env:
 
 ```env
-CLOUDFLARE_TUNNEL_METRICS_TARGET=cloudflared:2000
+CLOUDFLARE_TUNNEL_METRICS_TARGET=cf_tunnel_tunnel:2000
 CLOUDFLARE_TUNNEL_NAME=grafana
 ```
 
