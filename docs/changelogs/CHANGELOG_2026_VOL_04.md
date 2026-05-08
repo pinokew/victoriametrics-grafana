@@ -208,3 +208,74 @@
 - VictoriaMetrics query API повертає `mysql_up{job="mariadb-exporter"}=1`, `mysql_up{job="matomo-mariadb-exporter"}=1`, `pg_up{job="postgres-exporter"}=1`, `pg_stat_database_numbackends{job="postgres-exporter",datname="dspace"}`.
 - **Risks:** Скрипт очікує доступні app DB containers. Для деплоїв без Koha/Matomo/DSpace поруч можна встановити `ENSURE_DB_EXPORTER_USERS_ON_DEPLOY=false`.
 - **Rollback:** Відкотити скрипт/виклик у deploy path/docs/changelog; за потреби вручну повернути попередні DB grants/passwords для `metrics_reader`.
+
+## [2026-05-08] — Website probes: add DSpace UI/API blackbox jobs
+- **Context:** Website probes були налаштовані для Koha OPAC, Koha staff і Matomo, але DSpace не мав окремої synthetic HTTP probe. DSpace частково покривався PostgreSQL exporter, cAdvisor і Traefik metrics, але це не перевіряє зовнішню доступність UI/API без реального користувацького трафіку.
+- **Change:**
+- Додано env-змінні в `.env.example`:
+	- `DSPACE_UI_URL=https://dspace.example.com`
+	- `DSPACE_API_URL=https://dspace-api.example.com/server`
+- Оновлено `scripts/render-scrape-config.sh`: читає, валідує `http(s)://` і підставляє `DSPACE_UI_URL` / `DSPACE_API_URL`.
+- Оновлено `victoria-metrics/scrape-config.tmpl.yml`:
+	- `blackbox-dspace-ui` з labels `service="dspace"`, `website="ui"`;
+	- `blackbox-dspace-api` з labels `service="dspace"`, `website="api"`.
+- Додано alert rules у `grafana/provisioning/alerting/website-alerts.yml`:
+	- `DSpaceWebsiteDown`;
+	- `DSpaceWebsiteHighLatency`.
+- Оновлено `docs/configuration/exporters-config.md` і `docs/scripts_runbook.md`.
+- **Verification:** `bash -n scripts/render-scrape-config.sh` успішний; render перевірено на тимчасовому env-файлі з DSpace URL без зміни `env.*.enc`.
+- **Risks:** До наступного deploy/render потрібно додати `DSPACE_UI_URL` і `DSPACE_API_URL` у реальний decrypted env (`env.*.enc` після розшифрування), інакше `render-scrape-config.sh` очікувано зупиниться.
+- **Rollback:** Видалити DSpace env-змінні, template jobs, alert rules і документацію; перерендерити `victoria-metrics/scrape-config.yml`.
+
+## [2026-05-08] — Cloudflare Tunnel metrics: external edge scrape target
+- **Context:** Cloudflare Tunnel винесений у зовнішній edge stack, до якого підключений Traefik; контейнер `cloudflared` не повертаємо в monitoring compose/swarm stack.
+- **Change:**
+- Додано env-контракт у `.env.example`:
+	- `CLOUDFLARE_TUNNEL_METRICS_TARGET=cloudflared:2000`
+	- `CLOUDFLARE_TUNNEL_NAME=grafana`
+- Оновлено `scripts/render-scrape-config.sh`: читає, валідує `host:port` target без URL-схеми і підставляє Cloudflare Tunnel labels.
+- Оновлено `victoria-metrics/scrape-config.tmpl.yml`: додано scrape job `cloudflare-tunnel` з labels `service="cloudflare"`, `component="tunnel"`.
+- Оновлено label schema ADR і документацію для external edge stack моделі.
+- **Verification:** `bash -n scripts/render-scrape-config.sh` і `git diff --check` успішні; render smoke у тимчасовій копії через `.env.example` створив job `cloudflare-tunnel` з target `cloudflared:2000` і labels `service="cloudflare"`, `component="tunnel"`, `tunnel="grafana"`.
+- **Risks:** До наступного deploy/render потрібно додати `CLOUDFLARE_TUNNEL_METRICS_TARGET` і `CLOUDFLARE_TUNNEL_NAME` у реальний decrypted env (`env.*.enc` після розшифрування), інакше `render-scrape-config.sh` очікувано зупиниться.
+- **Rollback:** Видалити Cloudflare env-змінні, scrape job, label schema/doc updates і перерендерити `victoria-metrics/scrape-config.yml`.
+
+## [2026-05-08] — Cloudflare Tunnel dashboard: provisioned Grafana overview
+- **Context:** Після додання scrape job `cloudflare-tunnel` потрібен provisioned Grafana dashboard для tunnel health, traffic і QUIC transport metrics.
+- **Change:**
+- Додано dashboard `grafana/dashboards/cloudflare-tunnel-overview.json` з uid `kdi-cloudflare-tunnel-overview`.
+- Панелі покривають:
+	- scrape status;
+	- HA connections;
+	- request/error rate;
+	- active streams і concurrent requests;
+	- QUIC RTT і lost packets;
+	- current edge locations;
+	- `cloudflared` build info.
+- Dashboard використовує datasource `uid: victoriametrics` і labels `job="cloudflare-tunnel"`, `env="prod"`, `tunnel`.
+- Оновлено `grafana/dashboards/README.md` і `docs/dashboards/dashboard-catalog.md`.
+- **Verification:** `jq empty grafana/dashboards/cloudflare-tunnel-overview.json` і `git diff --check` успішні; grep-перевірка підтвердила `uid`, datasource `victoriametrics` і query references на `cloudflare-tunnel` / `cloudflared_tunnel_*` / `quic_client_*`.
+- **Risks:** Частина панелей буде `No data`, доки external `cloudflared` metrics endpoint не стане доступним для VictoriaMetrics і не почне віддавати відповідні метрики.
+- **Rollback:** Видалити dashboard JSON і записи з dashboard docs/catalog.
+
+## [2026-05-08] — Cloudflare Tunnel alerts: metrics, HA, proxy errors, QUIC loss
+- **Context:** Після додання Cloudflare Tunnel scrape job і dashboard потрібні alert-и на базові ризики external edge stack.
+- **Change:**
+- Додано Prometheus-style catalog rules у `alerting/rules/cloudflare.yml`:
+	- `CloudflareTunnelMetricsDown` — critical, якщо `up < 1` понад 2 хвилини;
+	- `CloudflareTunnelHAConnectionsLow` — warning, якщо HA connections < 2 понад 5 хвилин;
+	- `CloudflareTunnelRequestErrorsHigh` — warning, якщо origin proxy error rate > 1% понад 5 хвилин;
+	- `CloudflareTunnelQUICPacketLossHigh` — warning, якщо QUIC lost packets > 1 packet/sec понад 5 хвилин.
+- Додано Grafana provisioning rules у `grafana/provisioning/alerting/cloudflare-alerts.yml`.
+- Додано runbook `docs/runbooks/cloudflare-tunnel.md`.
+- Оновлено `docs/alerting/alert-rules-catalog.md`.
+- **Verification:** YAML parse для `alerting/rules/cloudflare.yml` і `grafana/provisioning/alerting/cloudflare-alerts.yml` успішний; grep-перевірка підтвердила всі rule UID/title/runbook references; `git diff --check` успішний.
+- **Risks:** До фактичного scrape target up правила з `NoDataState=Alerting` для `CloudflareTunnelMetricsDown` можуть перейти в firing, якщо provisioning застосувати до того, як `cloudflared` metrics endpoint доступний.
+- **Rollback:** Видалити `cloudflare-alerts.yml`, `alerting/rules/cloudflare.yml`, runbook/catalog записи і перезапустити Grafana.
+
+## [2026-05-08] — Docs: remove stale in-repo cloudflared deployment steps
+- **Context:** `docs/deployment/monitoring-stack-deploy.md` досі описував старий `cloudflared` service/profile `phase1-edge` і `CLOUDFLARE_TUNNEL_TOKEN`, хоча tunnel винесений у зовнішній edge stack.
+- **Change:** Оновлено Cloudflare Tunnel deployment section: зафіксовано, що `cloudflared` не запускається з цього репозиторію, а monitoring stack використовує тільки `CLOUDFLARE_GRAFANA_HOSTNAME` і external metrics target `CLOUDFLARE_TUNNEL_METRICS_TARGET`.
+- **Verification:** `rg` підтвердив, що deployment doc більше не містить `phase1-edge`, `CLOUDFLARE_TUNNEL_TOKEN` або команд запуску `cloudflared` з цього repo; `git diff --check` успішний.
+- **Risks:** Реальні інструкції запуску зовнішнього edge stack лишаються поза цим репозиторієм.
+- **Rollback:** Повернути попередній текст розділу Cloudflare Tunnel у deployment doc.

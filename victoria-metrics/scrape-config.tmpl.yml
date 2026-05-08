@@ -70,6 +70,17 @@ scrape_configs:
         labels:
           env: prod
 
+  - job_name: cloudflare-tunnel
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - __CLOUDFLARE_TUNNEL_METRICS_TARGET__
+        labels:
+          env: prod
+          service: cloudflare
+          component: tunnel
+          tunnel: __CLOUDFLARE_TUNNEL_NAME__
+
   - job_name: blackbox-koha-opac
     metrics_path: /probe
     params:
@@ -122,6 +133,46 @@ scrape_configs:
           env: prod
           service: matomo
           website: analytics
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  - job_name: blackbox-dspace-ui
+    metrics_path: /probe
+    params:
+      module:
+        - http_2xx
+    static_configs:
+      - targets:
+          - __DSPACE_UI_URL__
+        labels:
+          env: prod
+          service: dspace
+          website: ui
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  - job_name: blackbox-dspace-api
+    metrics_path: /probe
+    params:
+      module:
+        - http_2xx
+    static_configs:
+      - targets:
+          - __DSPACE_API_URL__
+        labels:
+          env: prod
+          service: dspace
+          website: api
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target

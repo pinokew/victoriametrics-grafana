@@ -29,9 +29,10 @@
 - `postgres-exporter`: PostgreSQL telemetry (read-only account)
 - `blackbox-exporter`: synthetic HTTP/TLS probes
 - `traefik` metrics target: reverse-proxy metrics scraped via dedicated job
+- `cloudflared` metrics target: зовнішній edge stack, scraped через `CLOUDFLARE_TUNNEL_METRICS_TARGET`
 
 ### Edge and access service
-- `cloudflared`: tunnel client to expose only Grafana endpoint via Cloudflare edge
+- `cloudflared`: tunnel client in an external edge stack; this repository only scrapes its metrics endpoint and does not run the tunnel container
 
 ## 4. Infra Topology
 ### Host model

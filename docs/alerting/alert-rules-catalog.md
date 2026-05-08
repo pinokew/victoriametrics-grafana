@@ -40,6 +40,10 @@
 | VictoriaMetricsRestoreSmokeStale | warning | 30m | `docs/runbooks/vm-backup-restore.md` |
 | WebsiteDown | critical | 2m | `docs/runbooks/website-probe.md` |
 | WebsiteHighLatency | warning | 5m | `docs/runbooks/website-probe.md` |
+| CloudflareTunnelMetricsDown | critical | 2m | `docs/runbooks/cloudflare-tunnel.md` |
+| CloudflareTunnelHAConnectionsLow | warning | 5m | `docs/runbooks/cloudflare-tunnel.md` |
+| CloudflareTunnelRequestErrorsHigh | warning | 5m | `docs/runbooks/cloudflare-tunnel.md` |
+| CloudflareTunnelQUICPacketLossHigh | warning | 5m | `docs/runbooks/cloudflare-tunnel.md` |
 
 ## Synthetic Smoke Rule
 
@@ -57,9 +61,11 @@
   - `grafana/provisioning/alerting/alert-rules.yml`
   - `grafana/provisioning/alerting/backup-alerts.yml`
   - `grafana/provisioning/alerting/website-alerts.yml`
+  - `grafana/provisioning/alerting/cloudflare-alerts.yml`
 - Rule catalog (Prometheus-style):
   - `alerting/rules/host.yml`
   - `alerting/rules/containers.yml`
   - `alerting/rules/databases.yml`
   - `alerting/rules/traefik.yml`
   - `alerting/rules/monitoring.yml`
+  - `alerting/rules/cloudflare.yml`

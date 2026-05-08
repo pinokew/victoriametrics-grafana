@@ -39,6 +39,17 @@
 - У labels для цього job залишаємо тільки `env: prod` (без статичного `service`).
 - Причина: Traefik сам віддає label `service` (`dspace-api@docker`, `dspace-ui@docker` тощо). Якщо перезаписати його статичним `service: traefik`, панелі `KDI Traefik v3 Overview` будуть порожні або некоректні.
 
+### Cloudflare Tunnel Metrics
+- Scrape job: `cloudflare-tunnel`
+- Target задається через `CLOUDFLARE_TUNNEL_METRICS_TARGET` у форматі `host:port` без `http://` або `https://`.
+- Tunnel name задається через `CLOUDFLARE_TUNNEL_NAME` і потрапляє в label `tunnel`.
+- Очікувана модель: `cloudflared` працює в зовнішньому edge stack, а monitoring stack дістається до його metrics endpoint через спільну Docker network або інший внутрішній маршрут.
+- У цей репозиторій `cloudflared` контейнер не повертаємо.
+- Labels:
+	- `env: prod`
+	- `service: cloudflare`
+	- `component: tunnel`
+
 ### Blackbox Exporter (Phase 4)
 - Сервіс: `blackbox-exporter`
 - Порт: внутрішній `:9115` (без публікації на host)
@@ -49,6 +60,17 @@
 - Scrape jobs у `victoria-metrics/scrape-config.yml`:
 	- `blackbox-koha-opac`
 	- `blackbox-koha-staff`
+	- `blackbox-matomo`
+	- `blackbox-dspace-ui`
+	- `blackbox-dspace-api`
+- Env-змінні для render:
+	- `KOHA_OPAC_URL`
+	- `KOHA_STAFF_URL`
+	- `MATOMO_URL`
+	- `DSPACE_UI_URL`
+	- `DSPACE_API_URL`
+	- `CLOUDFLARE_TUNNEL_METRICS_TARGET`
+	- `CLOUDFLARE_TUNNEL_NAME`
 
 ## Matomo DB Size Metric (Phase 6)
 - Скрипт: `scripts/collect-matomo-db-size.sh`

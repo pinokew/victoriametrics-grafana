@@ -73,7 +73,7 @@ ORCHESTRATOR_ENV_FILE=/tmp/env.decrypted bash scripts/init-volumes.sh
 #### Бізнес-логіка
 
 - Рендерить `victoria-metrics/scrape-config.yml` із template.
-- Читає `KOHA_OPAC_URL`, `KOHA_STAFF_URL`, `MATOMO_URL` через `ORCHESTRATOR_ENV_FILE` або `--env-file` без `source`.
+- Читає `KOHA_OPAC_URL`, `KOHA_STAFF_URL`, `MATOMO_URL`, `DSPACE_UI_URL`, `DSPACE_API_URL`, `CLOUDFLARE_TUNNEL_METRICS_TARGET`, `CLOUDFLARE_TUNNEL_NAME` через `ORCHESTRATOR_ENV_FILE` або `--env-file` без `source`.
 - Пише результат у tmp-файл, звіряє з поточним конфігом через `cmp`/checksum і не перезаписує файл, якщо змін немає.
 
 #### Manual execution

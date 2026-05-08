@@ -77,26 +77,27 @@ ss -tlnp | grep -E '8428|3000|9100'
 
 ### Cloudflare Tunnel для Grafana
 
-У репозиторії вже підготовлено сервіс `cloudflared` (profile `phase1-edge`) у `docker-compose.yml`.
+Cloudflare Tunnel працює в окремому зовнішньому edge stack. У цьому репозиторії `cloudflared` контейнер не запускається і не повертається в `docker-compose.yml`.
 
-1. У Cloudflare Zero Trust створити Tunnel та Public Hostname:
+1. У зовнішньому edge stack має бути налаштований Tunnel та Public Hostname:
   - hostname: `${CLOUDFLARE_GRAFANA_HOSTNAME}`
   - service type: `HTTP`
-  - service URL: `http://grafana:3000`
-2. Скопіювати tunnel token у локальний `.env`:
+  - service URL: route до Grafana через central Traefik / `proxy-net`
+
+2. Monitoring stack не зберігає tunnel token. Для Grafana потрібен тільки public hostname:
 
 ```env
-CLOUDFLARE_TUNNEL_TOKEN=<token_from_cloudflare>
+CLOUDFLARE_GRAFANA_HOSTNAME=grafana.example.com
 ```
 
-3. Запустити tunnel-контейнер:
+3. Для моніторингу зовнішнього tunnel metrics endpoint вказати target у decrypted env:
 
-```bash
-docker compose --profile phase1-edge up -d cloudflared
-docker compose logs cloudflared --tail=100
+```env
+CLOUDFLARE_TUNNEL_METRICS_TARGET=cloudflared:2000
+CLOUDFLARE_TUNNEL_NAME=grafana
 ```
 
-Очікування в логах: є активне з'єднання з Cloudflare edge (рядки на кшталт `Registered tunnel connection`).
+Очікування: VictoriaMetrics бачить target `cloudflare-tunnel`, а dashboard `KDI Cloudflare Tunnel Overview` отримує метрики `cloudflared_tunnel_*`.
 
 ### Cloudflare Access policy (MS Entra ID SSO)
 
