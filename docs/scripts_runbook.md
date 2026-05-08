@@ -105,6 +105,27 @@ ORCHESTRATOR_ENV_FILE=/tmp/env.decrypted \
   --write-env-file /tmp/env.decrypted
 ```
 
+### `scripts/ensure-db-exporter-users.sh`
+
+#### Бізнес-логіка
+
+- Ідемпотентно створює/оновлює read-only exporter users для:
+  `Koha MariaDB`, `Matomo MariaDB`, `DSpace PostgreSQL`.
+- Читає credentials із decrypted orchestrator env або fallback-ить на поточні exporter containers/secrets.
+- Не друкує паролі.
+- Для MariaDB застосовує `CREATE USER IF NOT EXISTS`, `ALTER USER`, `GRANT PROCESS`, `GRANT REPLICATION CLIENT`, `GRANT SELECT`, `GRANT SLAVE MONITOR`.
+- Для PostgreSQL застосовує `CREATE ROLE` за потреби, `ALTER ROLE`, `GRANT CONNECT`, `GRANT pg_monitor`.
+- Викликається з `scripts/deploy-orchestrator-swarm.sh`, якщо `ENSURE_DB_EXPORTER_USERS_ON_DEPLOY` не встановлено в `false`.
+
+#### Manual execution
+
+```bash
+ORCHESTRATOR_ENV_FILE=/tmp/env.decrypted \
+  DOCKER_RUNTIME_MODE=swarm \
+  STACK_NAME=monitoring \
+  bash scripts/ensure-db-exporter-users.sh --env-file /tmp/env.decrypted
+```
+
 ### `scripts/collect-matomo-archiving-metric.sh`
 
 #### Бізнес-логіка

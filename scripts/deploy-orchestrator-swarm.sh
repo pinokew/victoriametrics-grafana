@@ -229,6 +229,14 @@ deploy_swarm() {
     --env-file "${ENV_FILE}" \
     --write-env-file "${ENV_FILE}"
 
+  if [[ "${ENSURE_DB_EXPORTER_USERS_ON_DEPLOY:-true}" == "true" ]]; then
+    log "Ensuring DB exporter users"
+    ORCHESTRATOR_ENV_FILE="${ENV_FILE}" DOCKER_RUNTIME_MODE=swarm STACK_NAME="${STACK_NAME}" \
+      bash scripts/ensure-db-exporter-users.sh --env-file "${ENV_FILE}"
+  else
+    log "Skipping DB exporter users ensure (ENSURE_DB_EXPORTER_USERS_ON_DEPLOY=false)"
+  fi
+
   log "Rendering Swarm manifest (stack=${STACK_NAME}, env_file=${ENV_FILE})"
   docker compose --env-file "${ENV_FILE}" \
     -f "${compose_file}" \

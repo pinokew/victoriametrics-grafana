@@ -159,3 +159,52 @@
 - **Verification:** `bash -n` для змінених shell-скриптів; smoke-test нового render script на тимчасовому env-файлі з fake Docker CLI підтвердив hash suffix для всіх 4 generated secret names і оновлення env-файлу; `docker compose --env-file ... config` підтвердив підстановку versioned external secret names у Swarm manifest.
 - **Risks:** Скрипт вимагає непорожні значення всіх 4 secret values, бо `docker-compose.swarm.yml` завжди посилається на відповідні external secrets.
 - **Rollback:** Видалити `scripts/render-versioned-env-secret.sh`, прибрати його виклик з `deploy-orchestrator-swarm.sh` і відкотити runbook/changelog.
+
+## [2026-05-08] — Grafana auth: local login form + AzureAD public redirect URL
+- **Context:** Після налаштування Entra ID / MS365 Grafana одразу редіректила на AzureAD і ховала локальний login/password вхід. OAuth request також формував redirect URI як `http://localhost:3000/login/azuread`, що не збігалося з доменним redirect URI в Azure Portal.
+- **Change:**
+- Додано env-контракт у `.env.example`:
+	- `GRAFANA_ADMIN_USER=m.zhuk@ldubgd.edu.ua`
+	- `GRAFANA_ADMIN_EMAIL=m.zhuk@ldubgd.edu.ua`
+	- `GF_AUTH_DISABLE_LOGIN_FORM=false`
+	- `GF_AUTH_AZUREAD_ENABLED=false`
+	- `GF_AUTH_AZUREAD_AUTO_LOGIN=false`
+	- `GF_AUTH_AZUREAD_SKIP_ORG_ROLE_SYNC=true`
+	- `GF_AUTH_OAUTH_ALLOW_INSECURE_EMAIL_LOOKUP=true`
+	- `GF_SERVER_DOMAIN=grafana.example.com`
+	- `GF_SERVER_ROOT_URL=https://grafana.example.com`
+- Прокинуто ці змінні в `docker-compose.yml` і `docker-compose.swarm.yml`; для Swarm це обов'язково, бо `env_file` там скинутий.
+- `GF_AUTH_AZUREAD_ENABLED=false` вимикає Entra ID / AzureAD provider декларативно через IaC до повторного увімкнення.
+- `GF_AUTH_AZUREAD_SKIP_ORG_ROLE_SYNC=true` не дає OAuth login зняти роль останнього org admin під час MS365 role sync.
+- `GF_AUTH_OAUTH_ALLOW_INSECURE_EMAIL_LOOKUP=true` дозволяє OAuth-мапування існуючого користувача за email.
+- `GF_SERVER_ROOT_URL` керує публічною базовою URL Grafana, тому AzureAD redirect URI має формуватися як `https://<grafana-domain>/login/azuread`.
+- Runtime cleanup: через backup/replace `grafana.db` видалено окремого користувача `id=3` з login/email `m.zhuk@ldubgd.edu.ua`; server admin `id=1` перейменовано на login/email `m.zhuk@ldubgd.edu.ua` і name `Максим Жук`.
+- Runtime SSO fix: у DB `sso_setting` для provider `azuread` змінено тільки `skip_org_role_sync` з `false` на `true`, бо Entra ID був налаштований через Grafana UI і цей DB setting впливає на поточний OAuth login.
+- **Verification:** `docker compose config` для Swarm overlay пройшов успішно; local compose перевірено через тимчасову копію без `env_file`, бо реального `.env` немає в repo. Rendered config містить `GF_AUTH_DISABLE_LOGIN_FORM=false`, `GF_AUTH_AZUREAD_ENABLED=false`, `GF_AUTH_AZUREAD_AUTO_LOGIN=false`, `GF_AUTH_AZUREAD_SKIP_ORG_ROLE_SYNC=true`, `GF_AUTH_OAUTH_ALLOW_INSECURE_EMAIL_LOOKUP=true`, `GF_SERVER_DOMAIN` і `GF_SERVER_ROOT_URL`. Після runtime cleanup Grafana service зійшовся в `1/1`, у DB лишилися користувачі `id=1 m.zhuk@ldubgd.edu.ua` (admin) і `id=4 test1@ldubgd.edu.ua`. Після runtime SSO fix service зійшовся в `1/1`, а `sso_setting.azuread.skip_org_role_sync=true`.
+- **Risks:** У реальному `.env` потрібно виставити production-домен Grafana і додати точно такий redirect URI в Azure Portal.
+- **Rollback:** Прибрати нові `GF_AUTH_*` / `GF_SERVER_*` змінні з env-шаблону та compose-файлів.
+
+## [2026-05-08] — DB exporters: idempotent metrics_reader IaC + restore Koha/Matomo/PostgreSQL metrics
+- **Context:** У Grafana/VM не відображалися Koha MariaDB і Matomo MariaDB metrics, а PostgreSQL dashboard мав неповний набір метрик. Runtime exporter services були `1/1`, але exporter endpoints показували `mysql_up=0` / `pg_up=0`.
+- **Root cause:** Усі три exporter-и не проходили DB authentication:
+	- Koha MariaDB exporter: `Access denied for user 'metrics_reader'`;
+	- Matomo MariaDB exporter: `Access denied for user 'metrics_reader'`;
+	- PostgreSQL exporter: `password authentication failed for user "metrics_reader"`.
+- **Change:**
+- Додано `scripts/ensure-db-exporter-users.sh`:
+	- ідемпотентно створює/оновлює `metrics_reader` у Koha MariaDB, Matomo MariaDB і DSpace PostgreSQL;
+	- читає credentials із decrypted orchestrator env або fallback-ить на поточні exporter containers/secrets;
+	- не друкує паролі;
+	- застосовує мінімальні read-only grants для exporter-ів.
+- Додано env-контракт `KOHA_DB_CONTAINER_NAME` і `DSPACE_POSTGRES_CONTAINER_NAME` у `.env.example`.
+- `scripts/deploy-orchestrator-swarm.sh` тепер викликає `ensure-db-exporter-users.sh` після render versioned secrets і до render/deploy Swarm manifest (`ENSURE_DB_EXPORTER_USERS_ON_DEPLOY=false` вимикає цей крок).
+- Оновлено `docs/security/db-exporter-users.md` і `docs/scripts_runbook.md`.
+- Runtime: запущено `scripts/ensure-db-exporter-users.sh` проти поточних DB контейнерів і перезапущено тільки `monitoring_mariadb-exporter`, `monitoring_matomo-mariadb-exporter`, `monitoring_postgres-exporter`.
+- **Verification:**
+- `bash -n scripts/ensure-db-exporter-users.sh scripts/deploy-orchestrator-swarm.sh` успішний.
+- Koha exporter endpoint: `mysql_up 1`, `mysql_global_status_uptime` присутня.
+- Matomo exporter endpoint: `mysql_up 1`, `mysql_global_status_uptime` присутня.
+- PostgreSQL exporter endpoint: `pg_up 1`, `pg_exporter_last_scrape_error 0`, `pg_stat_database_numbackends{datname="dspace"}` присутня.
+- VictoriaMetrics query API повертає `mysql_up{job="mariadb-exporter"}=1`, `mysql_up{job="matomo-mariadb-exporter"}=1`, `pg_up{job="postgres-exporter"}=1`, `pg_stat_database_numbackends{job="postgres-exporter",datname="dspace"}`.
+- **Risks:** Скрипт очікує доступні app DB containers. Для деплоїв без Koha/Matomo/DSpace поруч можна встановити `ENSURE_DB_EXPORTER_USERS_ON_DEPLOY=false`.
+- **Rollback:** Відкотити скрипт/виклик у deploy path/docs/changelog; за потреби вручну повернути попередні DB grants/passwords для `metrics_reader`.
