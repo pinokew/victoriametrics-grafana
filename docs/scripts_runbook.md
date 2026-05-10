@@ -163,8 +163,10 @@ ORCHESTRATOR_ENV_FILE=/tmp/env.decrypted bash scripts/collect-matomo-db-size.sh
 
 - Зупиняє VictoriaMetrics для консистентного backup.
 - Архівує `VM_DATA_DIR` у `VM_BACKUP_DIR`, створює `.sha256`.
+- Якщо задані `RCLONE_REMOTE` і `RCLONE_DEST_PATH`, копіює архів і checksum у `${RCLONE_REMOTE}:${RCLONE_DEST_PATH}`.
 - Публікує textfile metrics `kdi_vm_backup_*`.
 - Видаляє старі локальні backup-и за `VM_BACKUP_RETENTION_COUNT`.
+- Видаляє старі cloud backup-и за `VM_BACKUP_CLOUD_RETENTION_COUNT`.
 - Env завантажується через `SERVER_ENV`/`--env` + SOPS `/dev/shm`.
 
 #### Manual execution

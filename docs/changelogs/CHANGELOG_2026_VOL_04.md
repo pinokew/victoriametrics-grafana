@@ -296,3 +296,19 @@
 - **Verification:** Runtime query для `cloudflared_tunnel_active_streams{job="cloudflare-tunnel"}` повернув порожній result; `cloudflared_tunnel_concurrent_requests_per_tunnel`, `cloudflared_tunnel_ha_connections`, `cloudflared_tunnel_total_requests`, `cloudflared_tunnel_request_errors`, `cloudflared_tunnel_server_locations`, `quic_client_latest_rtt`, `quic_client_smoothed_rtt`, `quic_client_lost_packets` і `build_info` повертають дані.
 - **Risks:** Якщо в майбутній версії `cloudflared` метрика `active_streams` повернеться, її можна додати назад окремою панеллю.
 - **Rollback:** Повернути попередній query `cloudflared_tunnel_active_streams` у dashboard.
+
+## [2026-05-08] — VictoriaMetrics backup: separate rclone cloud retention
+- **Context:** Локальний backup VictoriaMetrics мав тільки `VM_BACKUP_RETENTION_COUNT`; для Google Drive через rclone потрібен окремий retention cloud-копій.
+- **Change:**
+- Оновлено `scripts/backup-victoriametrics-volume.sh`:
+	- додано опційний upload архіву і `.sha256` через rclone у `${RCLONE_REMOTE}:${RCLONE_DEST_PATH}`;
+	- додано окрему ротацію cloud backup-ів за `VM_BACKUP_CLOUD_RETENTION_COUNT`;
+	- локальна ротація за `VM_BACKUP_RETENTION_COUNT` залишена без змін.
+- Додано env-контракт у `.env.example`:
+	- `VM_BACKUP_CLOUD_RETENTION_COUNT=30`
+	- `RCLONE_REMOTE=gdrive-backup`
+	- `RCLONE_DEST_PATH=victoriametrics`
+- Оновлено `docs/scripts_runbook.md`, `docs/configuration/retention-policy.md` і `docs/deployment/monitoring-stack-deploy.md`.
+- **Verification:** `bash -n scripts/backup-victoriametrics-volume.sh` і `git diff --check` успішні.
+- **Risks:** Для cloud upload на host має бути налаштований rclone remote `gdrive-backup`; якщо задано тільки одну з `RCLONE_REMOTE` / `RCLONE_DEST_PATH`, скрипт очікувано завершується помилкою.
+- **Rollback:** Прибрати rclone upload/rotation із backup-скрипта і видалити `VM_BACKUP_CLOUD_RETENTION_COUNT`, `RCLONE_REMOTE`, `RCLONE_DEST_PATH` з env/docs.

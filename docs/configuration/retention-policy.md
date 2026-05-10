@@ -45,6 +45,9 @@ Dry-run перевірка без змін:
 ### Параметри `.env`
 - `VM_BACKUP_DIR` (default: `./.backups/victoriametrics`)
 - `VM_BACKUP_RETENTION_COUNT` (default: `7`)
+- `VM_BACKUP_CLOUD_RETENTION_COUNT` (default: `30`)
+- `RCLONE_REMOTE` (example: `gdrive-backup`)
+- `RCLONE_DEST_PATH` (example: `victoriametrics`)
 - `VM_RESTORE_TEST_PORT` (default: `18428`)
 
 ### Ручний запуск backup
@@ -95,6 +98,7 @@ Dry-run для перевірки кроків без змін:
 ## Validation checklist
 - Backup архів створено у `VM_BACKUP_DIR`.
 - Є файл checksum `.sha256`.
+- Якщо задані `RCLONE_REMOTE` і `RCLONE_DEST_PATH`, архів і checksum скопійовано в `${RCLONE_REMOTE}:${RCLONE_DEST_PATH}`.
 - Smoke test restore завершується повідомленням `Restore smoke test passed`.
 
 ## Risks

@@ -44,11 +44,32 @@ VM_DATA_DIR="$(read_env_or_default VM_DATA_DIR "./.data/victoriametrics")"
 VM_BACKUP_DIR="$(read_env_or_default VM_BACKUP_DIR "./.backups/victoriametrics")"
 NODE_EXPORTER_TEXTFILE_DIR="$(read_env_or_default NODE_EXPORTER_TEXTFILE_DIR "./.data/node-exporter-textfile")"
 VM_BACKUP_RETENTION_COUNT="$(read_env_or_default VM_BACKUP_RETENTION_COUNT "7")"
+VM_BACKUP_CLOUD_RETENTION_COUNT="$(read_env_or_default VM_BACKUP_CLOUD_RETENTION_COUNT "30")"
+RCLONE_REMOTE="$(read_env_or_default RCLONE_REMOTE "")"
+RCLONE_DEST_PATH="$(read_env_or_default RCLONE_DEST_PATH "")"
 METRICS_FILE_NAME="vm_backup.prom"
 
 if [[ ! "$VM_BACKUP_RETENTION_COUNT" =~ ^[0-9]+$ ]] || [[ "$VM_BACKUP_RETENTION_COUNT" -lt 1 ]]; then
   echo "ERROR: VM_BACKUP_RETENTION_COUNT must be a positive integer"
   exit 1
+fi
+
+if [[ ! "$VM_BACKUP_CLOUD_RETENTION_COUNT" =~ ^[0-9]+$ ]] || [[ "$VM_BACKUP_CLOUD_RETENTION_COUNT" -lt 1 ]]; then
+  echo "ERROR: VM_BACKUP_CLOUD_RETENTION_COUNT must be a positive integer"
+  exit 1
+fi
+
+cloud_backup_enabled="0"
+if [[ -n "$RCLONE_REMOTE" || -n "$RCLONE_DEST_PATH" ]]; then
+  if [[ -z "$RCLONE_REMOTE" || -z "$RCLONE_DEST_PATH" ]]; then
+    echo "ERROR: RCLONE_REMOTE and RCLONE_DEST_PATH must be set together"
+    exit 1
+  fi
+  if ! command -v rclone >/dev/null 2>&1; then
+    echo "ERROR: rclone is required when RCLONE_REMOTE/RCLONE_DEST_PATH are set"
+    exit 1
+  fi
+  cloud_backup_enabled="1"
 fi
 
 abs_path() {
@@ -105,6 +126,77 @@ restart_vm() {
   docker_runtime_start_service victoriametrics "$COMPOSE_FILE" >/dev/null 2>&1 || true
 }
 
+upload_backup_to_cloud() {
+  local cloud_dest="${RCLONE_REMOTE}:${RCLONE_DEST_PATH%/}"
+  local archive_name
+  local checksum_name
+
+  archive_name="$(basename "$archive")"
+  checksum_name="$(basename "$checksum_file")"
+
+  echo "Uploading backup to rclone remote: $cloud_dest"
+  rclone mkdir "$cloud_dest"
+  docker run --rm \
+    -v "$VM_BACKUP_ABS:/backup:ro" \
+    alpine:3.20 \
+    cat "/backup/$archive_name" | rclone rcat "$cloud_dest/$archive_name"
+  docker run --rm \
+    -v "$VM_BACKUP_ABS:/backup:ro" \
+    alpine:3.20 \
+    cat "/backup/$checksum_name" | rclone rcat "$cloud_dest/$checksum_name"
+}
+
+rotate_cloud_backups() {
+  local cloud_dest="${RCLONE_REMOTE}:${RCLONE_DEST_PATH%/}"
+  local old_backup
+  local backup_name
+  local checksum_name
+  local -a cloud_backups
+
+  mapfile -t cloud_backups < <(
+    rclone lsf "$cloud_dest" \
+      --files-only \
+      --format "p" \
+      --include "vmdata-*.tar.gz" 2>/dev/null \
+      | sort -r
+  )
+
+  if [[ "${#cloud_backups[@]}" -le "$VM_BACKUP_CLOUD_RETENTION_COUNT" ]]; then
+    return 0
+  fi
+
+  for old_backup in "${cloud_backups[@]:$VM_BACKUP_CLOUD_RETENTION_COUNT}"; do
+    backup_name="$(basename "$old_backup")"
+    checksum_name="${backup_name}.sha256"
+    echo "Removing old cloud backup: $cloud_dest/$backup_name"
+    rclone deletefile "$cloud_dest/$backup_name"
+    rclone deletefile "$cloud_dest/$checksum_name" || true
+  done
+}
+
+rotate_local_backups() {
+  docker run --rm \
+    -v "$VM_BACKUP_ABS:/backup" \
+    -e "VM_BACKUP_RETENTION_COUNT=$VM_BACKUP_RETENTION_COUNT" \
+    alpine:3.20 \
+    sh -c '
+      set -eu
+      cd /backup
+      backups="$(ls -1 vmdata-*.tar.gz 2>/dev/null | sort -r || true)"
+      backup_count="$(printf "%s\n" "$backups" | sed "/^$/d" | wc -l)"
+      if [ "$backup_count" -le "$VM_BACKUP_RETENTION_COUNT" ]; then
+        exit 0
+      fi
+      printf "%s\n" "$backups" \
+        | sed "/^$/d" \
+        | tail -n +"$((VM_BACKUP_RETENTION_COUNT + 1))" \
+        | while IFS= read -r old_backup; do
+            echo "Removing old backup: $old_backup"
+            rm -f "$old_backup" "${old_backup}.sha256"
+          done
+    '
+}
+
 cleanup() {
   local exit_code=$?
   if [[ "$vm_stopped" == "1" ]]; then
@@ -130,18 +222,18 @@ docker run --rm \
 echo "Starting victoriametrics back..."
 docker_runtime_start_service victoriametrics "$COMPOSE_FILE"
 vm_stopped="0"
+
+if [[ "$cloud_backup_enabled" == "1" ]]; then
+  upload_backup_to_cloud
+  rotate_cloud_backups
+fi
+
 backup_status="1"
 success_timestamp="$(date +%s)"
 emit_backup_metrics
 trap - EXIT
 
-mapfile -t backups < <(ls -1t "$VM_BACKUP_ABS"/vmdata-*.tar.gz 2>/dev/null || true)
-if [[ "${#backups[@]}" -gt "$VM_BACKUP_RETENTION_COUNT" ]]; then
-  for old_backup in "${backups[@]:$VM_BACKUP_RETENTION_COUNT}"; do
-    echo "Removing old backup: $old_backup"
-    rm -f "$old_backup" "${old_backup}.sha256"
-  done
-fi
+rotate_local_backups
 
 echo "Backup completed: $archive"
 echo "Checksum file: $checksum_file"

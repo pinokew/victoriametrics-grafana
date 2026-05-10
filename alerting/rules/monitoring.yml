@@ -45,3 +45,47 @@ groups:
         annotations:
           summary: VictoriaMetrics restore smoke test is stale (no successful test in the last 8d)
           runbook: docs/runbooks/vm-backup-restore.md
+
+      - alert: DSpaceBackupStale
+        expr: (time() - dspace_backup_last_success_timestamp_seconds{job="node-exporter",env="prod",service="host",exported_service="dspace"}) > 93600
+        for: 30m
+        labels:
+          severity: critical
+          env: prod
+          service: dspace
+        annotations:
+          summary: DSpace backup is stale (no successful backup in the last 26h)
+          runbook: docs/runbooks/vm-backup-restore.md
+
+      - alert: DSpaceRestoreSmokeStale
+        expr: (time() - dspace_restore_smoke_last_success_timestamp_seconds{job="node-exporter",env="prod",service="host",exported_service="dspace"}) > 691200
+        for: 30m
+        labels:
+          severity: warning
+          env: prod
+          service: dspace
+        annotations:
+          summary: DSpace restore smoke test is stale (no successful test in the last 8d)
+          runbook: docs/runbooks/vm-backup-restore.md
+
+      - alert: KohaBackupStale
+        expr: (time() - koha_backup_last_success_timestamp_seconds{job="node-exporter",env="prod",service="host",exported_service="koha"}) > 93600
+        for: 30m
+        labels:
+          severity: critical
+          env: prod
+          service: koha
+        annotations:
+          summary: Koha backup is stale (no successful backup in the last 26h)
+          runbook: docs/runbooks/vm-backup-restore.md
+
+      - alert: KohaRestoreSmokeStale
+        expr: (time() - koha_restore_smoke_last_success_timestamp_seconds{job="node-exporter",env="prod",service="host",exported_service="koha"}) > 691200
+        for: 30m
+        labels:
+          severity: warning
+          env: prod
+          service: koha
+        annotations:
+          summary: Koha restore smoke test is stale (no successful test in the last 8d)
+          runbook: docs/runbooks/vm-backup-restore.md

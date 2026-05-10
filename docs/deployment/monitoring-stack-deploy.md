@@ -172,4 +172,5 @@ curl --connect-timeout 3 http://${EXTERNAL_IP}:8428/health
 Очікування:
 - створено архів `vmdata-*.tar.gz` у `VM_BACKUP_DIR`;
 - створено checksum-файл `.sha256`;
+- якщо задані `RCLONE_REMOTE` і `RCLONE_DEST_PATH`, backup і checksum скопійовано в `${RCLONE_REMOTE}:${RCLONE_DEST_PATH}`;
 - restore smoke test повертає `Restore smoke test passed`.
