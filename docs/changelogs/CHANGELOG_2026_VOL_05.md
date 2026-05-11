@@ -39,3 +39,17 @@
 - **Verification:** YAML parse для `backup-alerts.yml` і `monitoring.yml` успішний; node-exporter читає `koha_backup_*` і `koha_restore_smoke_*` з `node_textfile_scrape_error=0`; VictoriaMetrics API повертає `koha_backup_last_success_timestamp_seconds` і `koha_restore_smoke_last_success_timestamp_seconds` з labels `job="node-exporter"`, `service="host"`, `exported_service="koha"`; age expressions для Koha backup/restore нижче порогів і alert threshold queries повертають empty vector; `docker service update --force monitoring_grafana` завершився converged, Grafana logs показали `finished to provision alerting`.
 - **Risks:** Якщо Koha cron не запускає backup/test-restore регулярно або textfile path не змонтовано в node-exporter, alerts перейдуть у stale/no-data.
 - **Rollback:** Видалити Koha alert rules з `backup-alerts.yml`, `monitoring.yml` і catalog docs.
+
+## [2026-05-11] — Data volume alerts for `/data` and `/data2`
+- **Context:** Oracle Linux KVM node має два критичні XFS data volume-и: `/data` на `vdb` і `/data2` на `vdc`; потрібні окремі Grafana alert-и без додаткового dashboard JSON.
+- **Change:**
+- Додано Grafana Unified Alerting provisioning rules у `grafana/provisioning/alerting/data-volumes.yml`:
+	- `DataVolumesFreeSpaceWarning` — warning, якщо вільне місце на `/data` або `/data2` нижче 15%;
+	- `DataVolumesFreeSpaceCritical` — critical, якщо вільне місце на `/data` або `/data2` нижче 5%;
+	- `DataVolumesRunoutPredictedWarning` — warning, якщо `predict_linear` за 24 години прогнозує вичерпання місця протягом 4 днів;
+	- `DataVolumesReadLatencyWarning` і `DataVolumesWriteLatencyWarning` — warning, якщо середня latency на `vdb` або `vdc` понад 100ms.
+- Додано Prometheus-style catalog rules у `alerting/rules/data-volumes.yml`.
+- Оновлено `docs/alerting/alert-rules-catalog.md`.
+- **Verification:** YAML parse для `grafana/provisioning/alerting/data-volumes.yml` і `alerting/rules/data-volumes.yml` успішний; VictoriaMetrics API повертає series для `/data`, `/data2`, `vdb` і `vdc`; free-space expressions показали `/data` ~98.03% і `/data2` ~97.61% вільного місця, threshold queries повернули empty vector у healthy стані; `predict_linear` повернув позитивний прогноз вільних байтів для обох volume-ів; read/write latency expressions повернули значення значно нижче 100ms, threshold queries повернули empty vector; `docker service update --force monitoring_grafana` завершився `converged`, Grafana logs показали `finished to provision alerting`, а Grafana DB містить UID/title нових `DataVolumes*` правил.
+- **Risks:** Якщо labels node-exporter відрізняються від `job="node-exporter", env="prod", service="host"` або device names зміняться після перезавантаження VM, алерти перейдуть у no-data.
+- **Rollback:** Видалити `grafana/provisioning/alerting/data-volumes.yml`, `alerting/rules/data-volumes.yml` і записи з catalog/changelog.

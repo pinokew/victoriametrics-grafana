@@ -48,6 +48,11 @@
 | CloudflareTunnelHAConnectionsLow | warning | 5m | `docs/runbooks/cloudflare-tunnel.md` |
 | CloudflareTunnelRequestErrorsHigh | warning | 5m | `docs/runbooks/cloudflare-tunnel.md` |
 | CloudflareTunnelQUICPacketLossHigh | warning | 5m | `docs/runbooks/cloudflare-tunnel.md` |
+| DataVolumesFreeSpaceWarning | warning | 5m | `docs/runbooks/disk-space-low.md` |
+| DataVolumesFreeSpaceCritical | critical | 5m | `docs/runbooks/disk-space-low.md` |
+| DataVolumesRunoutPredictedWarning | warning | 15m | `docs/runbooks/disk-space-low.md` |
+| DataVolumesReadLatencyWarning | warning | 5m | `docs/runbooks/disk-space-low.md` |
+| DataVolumesWriteLatencyWarning | warning | 5m | `docs/runbooks/disk-space-low.md` |
 
 ## Synthetic Smoke Rule
 
@@ -66,6 +71,7 @@
   - `grafana/provisioning/alerting/backup-alerts.yml`
   - `grafana/provisioning/alerting/website-alerts.yml`
   - `grafana/provisioning/alerting/cloudflare-alerts.yml`
+  - `grafana/provisioning/alerting/data-volumes.yml`
 - Rule catalog (Prometheus-style):
   - `alerting/rules/host.yml`
   - `alerting/rules/containers.yml`
@@ -73,3 +79,4 @@
   - `alerting/rules/traefik.yml`
   - `alerting/rules/monitoring.yml`
   - `alerting/rules/cloudflare.yml`
+  - `alerting/rules/data-volumes.yml`

@@ -1,0 +1,68 @@
+groups:
+  - name: data-volumes
+    interval: 1m
+    rules:
+      - alert: DataVolumesFreeSpaceWarning
+        expr: (node_filesystem_avail_bytes{job="node-exporter",env="prod",service="host",mountpoint=~"/data|/data2",fstype="xfs"} / node_filesystem_size_bytes{job="node-exporter",env="prod",service="host",mountpoint=~"/data|/data2",fstype="xfs"}) * 100 < 15
+        for: 5m
+        labels:
+          severity: warning
+          env: prod
+          service: host
+          component: storage
+        annotations:
+          summary: "Вільне місце на {{ $labels.mountpoint }} нижче 15%"
+          description: "На {{ $labels.mountpoint }} ({{ $labels.fstype }}) залишилось менше 15% вільного місця."
+          runbook: docs/runbooks/disk-space-low.md
+
+      - alert: DataVolumesFreeSpaceCritical
+        expr: (node_filesystem_avail_bytes{job="node-exporter",env="prod",service="host",mountpoint=~"/data|/data2",fstype="xfs"} / node_filesystem_size_bytes{job="node-exporter",env="prod",service="host",mountpoint=~"/data|/data2",fstype="xfs"}) * 100 < 5
+        for: 5m
+        labels:
+          severity: critical
+          env: prod
+          service: host
+          component: storage
+        annotations:
+          summary: "Критично мало вільного місця на {{ $labels.mountpoint }}"
+          description: "На {{ $labels.mountpoint }} ({{ $labels.fstype }}) залишилось менше 5% вільного місця."
+          runbook: docs/runbooks/disk-space-low.md
+
+      - alert: DataVolumesRunoutPredictedWarning
+        expr: predict_linear(node_filesystem_avail_bytes{job="node-exporter",env="prod",service="host",mountpoint=~"/data|/data2",fstype="xfs"}[24h], 345600) < 0
+        for: 15m
+        labels:
+          severity: warning
+          env: prod
+          service: host
+          component: storage
+        annotations:
+          summary: "Прогнозоване вичерпання місця на {{ $labels.mountpoint }}"
+          description: "{{ $labels.mountpoint }} може вичерпати вільне місце протягом наступних 4 днів за трендом останніх 24 годин."
+          runbook: docs/runbooks/disk-space-low.md
+
+      - alert: DataVolumesReadLatencyWarning
+        expr: ((rate(node_disk_read_time_seconds_total{job="node-exporter",env="prod",service="host",device=~"vdb|vdc"}[5m]) / rate(node_disk_reads_completed_total{job="node-exporter",env="prod",service="host",device=~"vdb|vdc"}[5m])) and rate(node_disk_reads_completed_total{job="node-exporter",env="prod",service="host",device=~"vdb|vdc"}[5m]) > 0) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          env: prod
+          service: host
+          component: storage
+        annotations:
+          summary: "Висока read latency на {{ $labels.device }}"
+          description: "Backing block device {{ $labels.device }} має середню read latency понад 100ms протягом 5 хвилин."
+          runbook: docs/runbooks/disk-space-low.md
+
+      - alert: DataVolumesWriteLatencyWarning
+        expr: ((rate(node_disk_write_time_seconds_total{job="node-exporter",env="prod",service="host",device=~"vdb|vdc"}[5m]) / rate(node_disk_writes_completed_total{job="node-exporter",env="prod",service="host",device=~"vdb|vdc"}[5m])) and rate(node_disk_writes_completed_total{job="node-exporter",env="prod",service="host",device=~"vdb|vdc"}[5m]) > 0) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          env: prod
+          service: host
+          component: storage
+        annotations:
+          summary: "Висока write latency на {{ $labels.device }}"
+          description: "Backing block device {{ $labels.device }} має середню write latency понад 100ms протягом 5 хвилин."
+          runbook: docs/runbooks/disk-space-low.md
