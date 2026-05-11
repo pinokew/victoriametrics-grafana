@@ -175,13 +175,14 @@ services:
       - ${GRAFANA_LOGS_DIR}:/var/log/grafana
       - ${GRAFANA_PROVISIONING_DIR}:/etc/grafana/provisioning:ro
       - ${GRAFANA_DASHBOARDS_DIR}:/var/lib/grafana/dashboards:ro
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=proxy-net"
-      - "traefik.http.routers.grafana.rule=Host(`${CLOUDFLARE_GRAFANA_HOSTNAME}`)"
-      - "traefik.http.routers.grafana.entrypoints=web"
-      - "traefik.http.routers.grafana.service=grafana"
-      - "traefik.http.services.grafana.loadbalancer.server.port=${GRAFANA_INTERNAL_PORT}"
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.swarm.network=proxy-net"
+        - "traefik.http.routers.grafana.rule=Host(`${CLOUDFLARE_GRAFANA_HOSTNAME}`)"
+        - "traefik.http.routers.grafana.entrypoints=web"
+        - "traefik.http.routers.grafana.service=grafana"
+        - "traefik.http.services.grafana.loadbalancer.server.port=${GRAFANA_INTERNAL_PORT}"
     networks:
       - monitoring_net
       - proxy-net
