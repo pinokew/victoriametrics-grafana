@@ -175,7 +175,7 @@ ensure_swarm_overlay_network() {
 }
 
 deploy_swarm() {
-  local compose_file swarm_file raw_manifest deploy_manifest
+  local compose_file swarm_file raw_manifest deploy_manifest scrape_config_file scrape_config_checksum_before scrape_config_checksum_after scrape_config_changed vm_service_name
 
   compose_file="$(detect_compose_file)"
   swarm_file="docker-compose.swarm.yml"
@@ -221,8 +221,23 @@ deploy_swarm() {
   log "Initializing bind-mount directories"
   ORCHESTRATOR_ENV_FILE="${ENV_FILE}" bash scripts/init-volumes.sh
 
+  scrape_config_file="${PROJECT_ROOT}/victoria-metrics/scrape-config.yml"
+  scrape_config_checksum_before=""
+  if [[ -f "${scrape_config_file}" ]]; then
+    scrape_config_checksum_before="$(sha256sum "${scrape_config_file}" | awk '{print $1}')"
+  fi
+
   log "Rendering VictoriaMetrics scrape config"
   ORCHESTRATOR_ENV_FILE="${ENV_FILE}" bash scripts/render-scrape-config.sh
+
+  scrape_config_checksum_after=""
+  if [[ -f "${scrape_config_file}" ]]; then
+    scrape_config_checksum_after="$(sha256sum "${scrape_config_file}" | awk '{print $1}')"
+  fi
+  scrape_config_changed="false"
+  if [[ "${scrape_config_checksum_before}" != "${scrape_config_checksum_after}" ]]; then
+    scrape_config_changed="true"
+  fi
 
   log "Rendering versioned Swarm secrets"
   ORCHESTRATOR_ENV_FILE="${ENV_FILE}" bash scripts/render-versioned-env-secret.sh \
@@ -247,6 +262,18 @@ deploy_swarm() {
 
   log "Deploying stack ${STACK_NAME}"
   docker stack deploy -c "${deploy_manifest}" "${STACK_NAME}"
+
+  vm_service_name="${STACK_NAME}_victoriametrics"
+  if [[ "${scrape_config_changed}" == "true" ]]; then
+    if docker service inspect "${vm_service_name}" >/dev/null 2>&1; then
+      log "VictoriaMetrics scrape config changed; forcing ${vm_service_name} service update to refresh file bind mount"
+      docker service update --force "${vm_service_name}" >/dev/null
+    else
+      log "VictoriaMetrics service ${vm_service_name} is not present yet; stack deploy will start it with current scrape config"
+    fi
+  else
+    log "VictoriaMetrics scrape config unchanged; skip ${vm_service_name} force update"
+  fi
 
   log "Swarm deploy completed"
 }
