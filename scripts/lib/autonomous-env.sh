@@ -46,6 +46,58 @@ decrypt_autonomous_env() {
   sops --decrypt --input-type dotenv --output-type dotenv "${enc_file}" > "${AUTONOMOUS_ENV_TMP}"
 }
 
+trim_env_key() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s\n' "$value"
+}
+
+unquote_env_value() {
+  local value="$1"
+  local quote
+
+  value="${value%$'\r'}"
+  if [[ "${#value}" -ge 2 ]]; then
+    quote="${value:0:1}"
+    if [[ "$quote" == "${value: -1}" && ( "$quote" == "'" || "$quote" == '"' ) ]]; then
+      value="${value:1:${#value}-2}"
+    fi
+  fi
+
+  printf '%s\n' "$value"
+}
+
+load_dotenv_without_eval() {
+  local env_file="$1"
+  local line
+  local key
+  local value
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+
+    if [[ "$line" =~ ^[[:space:]]*export[[:space:]]+ ]]; then
+      line="${line#export }"
+    fi
+
+    if [[ "$line" != *=* ]]; then
+      autonomous_env_die "invalid dotenv line without '=' in decrypted env"
+    fi
+
+    key="$(trim_env_key "${line%%=*}")"
+    value="${line#*=}"
+
+    if [[ ! "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+      autonomous_env_die "invalid dotenv key in decrypted env: ${key}"
+    fi
+
+    value="$(unquote_env_value "$value")"
+    export "${key}=${value}"
+  done < "${env_file}"
+}
+
 load_autonomous_env() {
   local project_root="$1"
   local environment_arg="${2:-}"
@@ -58,8 +110,5 @@ load_autonomous_env() {
   decrypt_autonomous_env "${enc_file}"
 
   autonomous_env_log "Loading env.${AUTONOMOUS_ENVIRONMENT}.enc from /dev/shm"
-  set -a
-  # shellcheck source=/dev/null
-  . "${AUTONOMOUS_ENV_TMP}"
-  set +a
+  load_dotenv_without_eval "${AUTONOMOUS_ENV_TMP}"
 }

@@ -4,14 +4,7 @@
 
 ## Поточний активний том
 
-- `docs/changelogs/CHANGELOG_2026_VOL_04.md`
-
-## Томи
-
-- `docs/changelogs/CHANGELOG_2026_VOL_01.md` — archived, старт Phase 0 (Pre-Flight) до soft limit 300 рядків
-- `docs/changelogs/CHANGELOG_2026_VOL_02.md` — archived
-- `docs/changelogs/CHANGELOG_2026_VOL_03.md` — archived
-- `docs/changelogs/CHANGELOG_2026_VOL_04.md` — active, продовження після ротації тому
+- `docs/changelogs/CHANGELOG_2026_VOL_05.md`
 
 
 ## Політика ротації

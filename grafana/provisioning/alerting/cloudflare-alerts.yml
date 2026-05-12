@@ -2,12 +2,12 @@ apiVersion: 1
 
 groups:
   - orgId: 1
-    name: phase4-website-alerting
+    name: phase4-cloudflare-tunnel-alerting
     folder: KDI-P0
     interval: 1m
     rules:
-      - uid: website-down
-        title: WebsiteDown
+      - uid: cloudflare-tunnel-metrics-down
+        title: CloudflareTunnelMetricsDown
         condition: C
         data:
           - refId: A
@@ -20,7 +20,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: probe_success{job=~"blackbox-koha-opac|blackbox-koha-staff",env="prod",service="koha"}
+              expr: up{job="cloudflare-tunnel",env="prod",service="cloudflare",component="tunnel"}
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -57,15 +57,16 @@ groups:
         execErrState: Error
         for: 2m
         annotations:
-          summary: Website probe failed for koha-opac or koha-staff
-          runbook: docs/runbooks/website-probe.md
+          summary: Cloudflare Tunnel metrics endpoint is unavailable
+          runbook: docs/runbooks/cloudflare-tunnel.md
         labels:
           severity: critical
           env: prod
-          service: koha
+          service: cloudflare
+          component: tunnel
 
-      - uid: website-high-latency
-        title: WebsiteHighLatency
+      - uid: cloudflare-tunnel-ha-connections-low
+        title: CloudflareTunnelHAConnectionsLow
         condition: C
         data:
           - refId: A
@@ -78,7 +79,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: probe_duration_seconds{job=~"blackbox-koha-opac|blackbox-koha-staff",env="prod",service="koha"}
+              expr: max by (tunnel, instance) (cloudflared_tunnel_ha_connections{job="cloudflare-tunnel",env="prod",service="cloudflare",component="tunnel"})
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -93,6 +94,65 @@ groups:
                 - evaluator:
                     params:
                       - 2
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Cloudflare Tunnel has fewer than 2 HA connections
+          runbook: docs/runbooks/cloudflare-tunnel.md
+        labels:
+          severity: warning
+          env: prod
+          service: cloudflare
+          component: tunnel
+
+      - uid: cloudflare-tunnel-request-errors-high
+        title: CloudflareTunnelRequestErrorsHigh
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: (sum by (tunnel, instance) (rate(cloudflared_tunnel_request_errors{job="cloudflare-tunnel",env="prod",service="cloudflare",component="tunnel"}[5m])) / clamp_min(sum by (tunnel, instance) (rate(cloudflared_tunnel_total_requests{job="cloudflare-tunnel",env="prod",service="cloudflare",component="tunnel"}[5m])), 1)) * 100
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
                     type: gt
                   operator:
                     type: and
@@ -115,133 +175,16 @@ groups:
         execErrState: Error
         for: 5m
         annotations:
-          summary: Website probe latency is above 2 seconds
-          runbook: docs/runbooks/website-probe.md
+          summary: Cloudflare Tunnel origin proxy error rate exceeded 1%
+          runbook: docs/runbooks/cloudflare-tunnel.md
         labels:
           severity: warning
           env: prod
-          service: koha
+          service: cloudflare
+          component: tunnel
 
-      - uid: matomo-down
-        title: MatomoDown
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange:
-              from: 300
-              to: 0
-            datasourceUid: victoriametrics
-            model:
-              datasource:
-                type: prometheus
-                uid: victoriametrics
-              editorMode: code
-              expr: probe_success{job="blackbox-matomo",env="prod",service="matomo"}
-              instant: true
-              intervalMs: 1000
-              maxDataPoints: 43200
-              refId: A
-          - refId: C
-            relativeTimeRange:
-              from: 0
-              to: 0
-            datasourceUid: __expr__
-            model:
-              conditions:
-                - evaluator:
-                    params:
-                      - 1
-                    type: lt
-                  operator:
-                    type: and
-                  query:
-                    params:
-                      - A
-                  reducer:
-                    params: []
-                    type: last
-                  type: query
-              datasource:
-                type: __expr__
-                uid: __expr__
-              expression: A
-              intervalMs: 1000
-              maxDataPoints: 43200
-              refId: C
-              type: threshold
-        noDataState: Alerting
-        execErrState: Error
-        for: 5m
-        annotations:
-          summary: "Matomo analytics is unavailable for 5 minutes"
-          description: "HTTP probe to Matomo ({{ $labels.instance }}) failed - TLS or HTTP status check failed"
-          runbook: docs/runbooks/matomo-down.md
-        labels:
-          severity: critical
-          env: prod
-          service: matomo
-
-      - uid: dspace-website-down
-        title: DSpaceWebsiteDown
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange:
-              from: 300
-              to: 0
-            datasourceUid: victoriametrics
-            model:
-              datasource:
-                type: prometheus
-                uid: victoriametrics
-              editorMode: code
-              expr: probe_success{job=~"blackbox-dspace-ui|blackbox-dspace-api",env="prod",service="dspace"}
-              instant: true
-              intervalMs: 1000
-              maxDataPoints: 43200
-              refId: A
-          - refId: C
-            relativeTimeRange:
-              from: 0
-              to: 0
-            datasourceUid: __expr__
-            model:
-              conditions:
-                - evaluator:
-                    params:
-                      - 1
-                    type: lt
-                  operator:
-                    type: and
-                  query:
-                    params:
-                      - A
-                  reducer:
-                    params: []
-                    type: last
-                  type: query
-              datasource:
-                type: __expr__
-                uid: __expr__
-              expression: A
-              intervalMs: 1000
-              maxDataPoints: 43200
-              refId: C
-              type: threshold
-        noDataState: Alerting
-        execErrState: Error
-        for: 5m
-        annotations:
-          summary: "DSpace UI or API is unavailable for 5 minutes"
-          description: "HTTP probe to DSpace ({{ $labels.instance }}) failed - UI/API status check failed"
-          runbook: docs/runbooks/website-probe.md
-        labels:
-          severity: critical
-          env: prod
-          service: dspace
-
-      - uid: dspace-website-high-latency
-        title: DSpaceWebsiteHighLatency
+      - uid: cloudflare-tunnel-quic-packet-loss-high
+        title: CloudflareTunnelQUICPacketLossHigh
         condition: C
         data:
           - refId: A
@@ -254,7 +197,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: probe_duration_seconds{job=~"blackbox-dspace-ui|blackbox-dspace-api",env="prod",service="dspace"}
+              expr: sum by (tunnel, instance) (rate(quic_client_lost_packets{job="cloudflare-tunnel",env="prod",service="cloudflare",component="tunnel"}[5m]))
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -268,7 +211,7 @@ groups:
               conditions:
                 - evaluator:
                     params:
-                      - 2
+                      - 1
                     type: gt
                   operator:
                     type: and
@@ -291,10 +234,10 @@ groups:
         execErrState: Error
         for: 5m
         annotations:
-          summary: "DSpace UI or API latency is above 2 seconds"
-          description: "HTTP probe to DSpace ({{ $labels.instance }}) is slower than expected"
-          runbook: docs/runbooks/website-probe.md
+          summary: Cloudflare Tunnel QUIC lost packet rate exceeded 1 packet/sec
+          runbook: docs/runbooks/cloudflare-tunnel.md
         labels:
           severity: warning
           env: prod
-          service: dspace
+          service: cloudflare
+          component: tunnel

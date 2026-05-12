@@ -9,8 +9,8 @@
 ## Рішення
 Фіксуємо схему labels:
 - `env` (обов'язково): `prod`
-- `service` (обов'язково): `koha|dspace|integrator|monitoring|host|traefik`
-- `component` (опціонально): `db|search|cache|broker`
+- `service` (обов'язково): `koha|dspace|integrator|monitoring|host|traefik|cloudflare`
+- `component` (опціонально): `db|search|cache|broker|tunnel`
 
 ## Приклад
 ```yaml

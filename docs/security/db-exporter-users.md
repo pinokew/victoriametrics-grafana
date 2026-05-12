@@ -3,10 +3,28 @@
 ## Принцип
 Exporter-користувачі для БД мають бути окремими від application users і мати тільки read-only права.
 
+## IaC застосування
+
+Основний спосіб створення/оновлення exporter-користувачів — ідемпотентний скрипт:
+
+```bash
+ORCHESTRATOR_ENV_FILE=/tmp/env.decrypted \
+  DOCKER_RUNTIME_MODE=swarm \
+  STACK_NAME=monitoring \
+  bash scripts/ensure-db-exporter-users.sh --env-file /tmp/env.decrypted
+```
+
+Скрипт:
+- читає exporter credentials із decrypted env-файлу або fallback-ить на поточні exporter containers/secrets;
+- не друкує паролі;
+- повторно застосовує `CREATE USER IF NOT EXISTS` / `ALTER USER` / `GRANT`;
+- використовується в `scripts/deploy-orchestrator-swarm.sh` перед render/deploy Swarm manifest.
+
 ## MariaDB (мінімально необхідні права)
 
 ```sql
-CREATE USER 'metrics_reader'@'%' IDENTIFIED BY 'change_me';
+CREATE USER IF NOT EXISTS 'metrics_reader'@'%' IDENTIFIED BY 'change_me';
+ALTER USER 'metrics_reader'@'%' IDENTIFIED BY 'change_me';
 GRANT PROCESS, REPLICATION CLIENT, SELECT ON *.* TO 'metrics_reader'@'%';
 GRANT SLAVE MONITOR ON *.* TO 'metrics_reader'@'%';
 FLUSH PRIVILEGES;
@@ -23,15 +41,16 @@ MARIADB_EXPORTER_PASSWORD=change_me
 ## PostgreSQL (мінімально необхідні права)
 
 ```sql
-CREATE USER metrics_reader WITH PASSWORD 'change_me';
-GRANT CONNECT ON DATABASE postgres TO metrics_reader;
+CREATE ROLE metrics_reader LOGIN PASSWORD 'change_me';
+ALTER ROLE metrics_reader LOGIN PASSWORD 'change_me';
+GRANT CONNECT ON DATABASE dspace TO metrics_reader;
 GRANT pg_monitor TO metrics_reader;
 ```
 
 Приклад DSN:
 
 ```env
-POSTGRES_EXPORTER_DSN=postgresql://metrics_reader:change_me@postgres:5432/postgres?sslmode=disable
+POSTGRES_EXPORTER_DSN=postgresql://metrics_reader:change_me@dspacedb:5432/dspace?sslmode=disable
 ```
 
 ## Перевірка

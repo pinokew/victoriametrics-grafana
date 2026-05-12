@@ -34,6 +34,7 @@ bash scripts/check-internal-ports-policy.sh
 - Перевіряє env-файл, оновлює Swarm secrets через Ansible якщо задано `INFRA_REPO_PATH`.
 - Створює/перевіряє overlay network `MONITORING_NETWORK_NAME`.
 - Перед deploy запускає `init-volumes.sh` і `render-scrape-config.sh`.
+- Рендерить immutable Swarm secrets через `render-versioned-env-secret.sh` і дописує generated `*_SECRET_NAME` у тимчасовий decrypted env-файл.
 - Рендерить merged manifest через `docker compose --env-file ... config` і виконує `docker stack deploy`.
 
 #### Manual execution
@@ -72,7 +73,7 @@ ORCHESTRATOR_ENV_FILE=/tmp/env.decrypted bash scripts/init-volumes.sh
 #### Бізнес-логіка
 
 - Рендерить `victoria-metrics/scrape-config.yml` із template.
-- Читає `KOHA_OPAC_URL`, `KOHA_STAFF_URL`, `MATOMO_URL` через `ORCHESTRATOR_ENV_FILE` або `--env-file` без `source`.
+- Читає `KOHA_OPAC_URL`, `KOHA_STAFF_URL`, `MATOMO_URL`, `DSPACE_UI_URL`, `DSPACE_API_URL`, `CLOUDFLARE_TUNNEL_METRICS_TARGET`, `CLOUDFLARE_TUNNEL_NAME` через `ORCHESTRATOR_ENV_FILE` або `--env-file` без `source`.
 - Пише результат у tmp-файл, звіряє з поточним конфігом через `cmp`/checksum і не перезаписує файл, якщо змін немає.
 
 #### Manual execution
@@ -80,6 +81,49 @@ ORCHESTRATOR_ENV_FILE=/tmp/env.decrypted bash scripts/init-volumes.sh
 ```bash
 ORCHESTRATOR_ENV_FILE=/tmp/env.decrypted bash scripts/render-scrape-config.sh
 bash scripts/render-scrape-config.sh --env-file .env
+```
+
+### `scripts/render-versioned-env-secret.sh`
+
+#### Бізнес-логіка
+
+- Створює Docker secrets з hash-based назвами для Swarm runtime secrets.
+- Рендерить:
+  `GRAFANA_ADMIN_PASSWORD_SECRET_NAME`,
+  `MS365_SMTP_PASSWORD_SECRET_NAME`,
+  `MARIADB_EXPORTER_PASSWORD_SECRET_NAME`,
+  `MATOMO_MARIADB_EXPORTER_PASSWORD_SECRET_NAME`.
+- Читає значення з `ORCHESTRATOR_ENV_FILE` або `--env-file` без `source`.
+- Не друкує значення секретів, тільки generated secret names.
+
+#### Manual execution
+
+```bash
+ORCHESTRATOR_ENV_FILE=/tmp/env.decrypted \
+  bash scripts/render-versioned-env-secret.sh \
+  --env-file /tmp/env.decrypted \
+  --write-env-file /tmp/env.decrypted
+```
+
+### `scripts/ensure-db-exporter-users.sh`
+
+#### Бізнес-логіка
+
+- Ідемпотентно створює/оновлює read-only exporter users для:
+  `Koha MariaDB`, `Matomo MariaDB`, `DSpace PostgreSQL`.
+- Читає credentials із decrypted orchestrator env або fallback-ить на поточні exporter containers/secrets.
+- Не друкує паролі.
+- Для MariaDB застосовує `CREATE USER IF NOT EXISTS`, `ALTER USER`, `GRANT PROCESS`, `GRANT REPLICATION CLIENT`, `GRANT SELECT`, `GRANT SLAVE MONITOR`.
+- Для PostgreSQL застосовує `CREATE ROLE` за потреби, `ALTER ROLE`, `GRANT CONNECT`, `GRANT pg_monitor`.
+- Викликається з `scripts/deploy-orchestrator-swarm.sh`, якщо `ENSURE_DB_EXPORTER_USERS_ON_DEPLOY` не встановлено в `false`.
+
+#### Manual execution
+
+```bash
+ORCHESTRATOR_ENV_FILE=/tmp/env.decrypted \
+  DOCKER_RUNTIME_MODE=swarm \
+  STACK_NAME=monitoring \
+  bash scripts/ensure-db-exporter-users.sh --env-file /tmp/env.decrypted
 ```
 
 ### `scripts/collect-matomo-archiving-metric.sh`
@@ -119,8 +163,10 @@ ORCHESTRATOR_ENV_FILE=/tmp/env.decrypted bash scripts/collect-matomo-db-size.sh
 
 - Зупиняє VictoriaMetrics для консистентного backup.
 - Архівує `VM_DATA_DIR` у `VM_BACKUP_DIR`, створює `.sha256`.
+- Якщо задані `RCLONE_REMOTE` і `RCLONE_DEST_PATH`, копіює архів і checksum у `${RCLONE_REMOTE}:${RCLONE_DEST_PATH}`.
 - Публікує textfile metrics `kdi_vm_backup_*`.
 - Видаляє старі локальні backup-и за `VM_BACKUP_RETENTION_COUNT`.
+- Видаляє старі cloud backup-и за `VM_BACKUP_CLOUD_RETENTION_COUNT`.
 - Env завантажується через `SERVER_ENV`/`--env` + SOPS `/dev/shm`.
 
 #### Manual execution

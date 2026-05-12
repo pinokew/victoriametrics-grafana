@@ -13,6 +13,7 @@
 | Matomo MariaDB | `grafana/dashboards/matomo-mariadb-overview-7362.json` | MySQL Overview (`7362`) | connections, QPS, InnoDB metrics, slow queries |
 | PostgreSQL | `grafana/dashboards/postgresql-overview-9628.json` | PostgreSQL Database (`9628`) | connections, transactions, cache stats, locks |
 | Traefik v3 | `grafana/dashboards/traefik-v3-official-17346.json` | Traefik Official (`17346`) | request rate, error rate, latency percentiles |
+| Cloudflare Tunnel | `grafana/dashboards/cloudflare-tunnel-overview.json` | KDI custom | tunnel health, HA connections, request/error rate, QUIC RTT/loss, edge locations |
 
 ## Примітка для `KDI Traefik v3 Overview`
 - Змінна `service` фільтрується як `.*@docker`, щоб прибрати технічні/історичні серії.

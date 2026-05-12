@@ -38,8 +38,21 @@
 | AnyTargetDown | warning | 2m | `docs/runbooks/monitoring-down.md` |
 | VictoriaMetricsBackupStale | critical | 10m | `docs/runbooks/vm-backup-restore.md` |
 | VictoriaMetricsRestoreSmokeStale | warning | 30m | `docs/runbooks/vm-backup-restore.md` |
+| DSpaceBackupStale | critical | 30m | `docs/runbooks/vm-backup-restore.md` |
+| DSpaceRestoreSmokeStale | warning | 30m | `docs/runbooks/vm-backup-restore.md` |
+| KohaBackupStale | critical | 30m | `docs/runbooks/vm-backup-restore.md` |
+| KohaRestoreSmokeStale | warning | 30m | `docs/runbooks/vm-backup-restore.md` |
 | WebsiteDown | critical | 2m | `docs/runbooks/website-probe.md` |
 | WebsiteHighLatency | warning | 5m | `docs/runbooks/website-probe.md` |
+| CloudflareTunnelMetricsDown | critical | 2m | `docs/runbooks/cloudflare-tunnel.md` |
+| CloudflareTunnelHAConnectionsLow | warning | 5m | `docs/runbooks/cloudflare-tunnel.md` |
+| CloudflareTunnelRequestErrorsHigh | warning | 5m | `docs/runbooks/cloudflare-tunnel.md` |
+| CloudflareTunnelQUICPacketLossHigh | warning | 5m | `docs/runbooks/cloudflare-tunnel.md` |
+| DataVolumesFreeSpaceWarning | warning | 5m | `docs/runbooks/disk-space-low.md` |
+| DataVolumesFreeSpaceCritical | critical | 5m | `docs/runbooks/disk-space-low.md` |
+| DataVolumesRunoutPredictedWarning | warning | 15m | `docs/runbooks/disk-space-low.md` |
+| DataVolumesReadLatencyWarning | warning | 5m | `docs/runbooks/disk-space-low.md` |
+| DataVolumesWriteLatencyWarning | warning | 5m | `docs/runbooks/disk-space-low.md` |
 
 ## Synthetic Smoke Rule
 
@@ -57,9 +70,13 @@
   - `grafana/provisioning/alerting/alert-rules.yml`
   - `grafana/provisioning/alerting/backup-alerts.yml`
   - `grafana/provisioning/alerting/website-alerts.yml`
+  - `grafana/provisioning/alerting/cloudflare-alerts.yml`
+  - `grafana/provisioning/alerting/data-volumes.yml`
 - Rule catalog (Prometheus-style):
   - `alerting/rules/host.yml`
   - `alerting/rules/containers.yml`
   - `alerting/rules/databases.yml`
   - `alerting/rules/traefik.yml`
   - `alerting/rules/monitoring.yml`
+  - `alerting/rules/cloudflare.yml`
+  - `alerting/rules/data-volumes.yml`

@@ -20,7 +20,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: (time() - kdi_vm_backup_last_success_timestamp_seconds{job="node-exporter",env="prod",exported_service="monitoring"}) > 93600
+              expr: (time() - kdi_vm_backup_last_success_timestamp_seconds{job="node-exporter",env="prod",exported_service="monitoring"})
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -34,7 +34,7 @@ groups:
               conditions:
                 - evaluator:
                     params:
-                      - 0
+                      - 93600
                     type: gt
                   operator:
                     type: and
@@ -78,7 +78,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: (time() - kdi_vm_restore_smoke_last_success_timestamp_seconds{job="node-exporter",env="prod",exported_service="monitoring"}) > 691200
+              expr: (time() - kdi_vm_restore_smoke_last_success_timestamp_seconds{job="node-exporter",env="prod",exported_service="monitoring"})
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -92,7 +92,7 @@ groups:
               conditions:
                 - evaluator:
                     params:
-                      - 0
+                      - 691200
                     type: gt
                   operator:
                     type: and
@@ -121,3 +121,235 @@ groups:
           severity: warning
           env: prod
           service: monitoring
+
+      - uid: dspace-backup-stale
+        title: DSpaceBackupStale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 172800
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: (time() - dspace_backup_last_success_timestamp_seconds{job="node-exporter",env="prod",service="host",exported_service="dspace"})
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 93600
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Error
+        for: 30m
+        annotations:
+          summary: DSpace backup is stale (no successful backup in the last 26h)
+          runbook: docs/runbooks/vm-backup-restore.md
+        labels:
+          severity: critical
+          env: prod
+          service: dspace
+
+      - uid: dspace-restore-smoke-stale
+        title: DSpaceRestoreSmokeStale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 1209600
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: (time() - dspace_restore_smoke_last_success_timestamp_seconds{job="node-exporter",env="prod",service="host",exported_service="dspace"})
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 691200
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Error
+        for: 30m
+        annotations:
+          summary: DSpace restore smoke test is stale (no successful test in the last 8d)
+          runbook: docs/runbooks/vm-backup-restore.md
+        labels:
+          severity: warning
+          env: prod
+          service: dspace
+
+      - uid: koha-backup-stale
+        title: KohaBackupStale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 172800
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: (time() - koha_backup_last_success_timestamp_seconds{job="node-exporter",env="prod",service="host",exported_service="koha"})
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 93600
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Error
+        for: 30m
+        annotations:
+          summary: Koha backup is stale (no successful backup in the last 26h)
+          runbook: docs/runbooks/vm-backup-restore.md
+        labels:
+          severity: critical
+          env: prod
+          service: koha
+
+      - uid: koha-restore-smoke-stale
+        title: KohaRestoreSmokeStale
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 1209600
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: (time() - koha_restore_smoke_last_success_timestamp_seconds{job="node-exporter",env="prod",service="host",exported_service="koha"})
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 691200
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Error
+        for: 30m
+        annotations:
+          summary: Koha restore smoke test is stale (no successful test in the last 8d)
+          runbook: docs/runbooks/vm-backup-restore.md
+        labels:
+          severity: warning
+          env: prod
+          service: koha

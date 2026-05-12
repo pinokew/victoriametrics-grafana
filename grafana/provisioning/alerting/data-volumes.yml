@@ -2,17 +2,18 @@ apiVersion: 1
 
 groups:
   - orgId: 1
-    name: phase4-website-alerting
+    name: data-volumes
     folder: KDI-P0
     interval: 1m
     rules:
-      - uid: website-down
-        title: WebsiteDown
+      # Абсолютний поріг вільного місця для критичних data volume-ів.
+      - uid: data-volumes-free-space-warning
+        title: DataVolumesFreeSpaceWarning
         condition: C
         data:
           - refId: A
             relativeTimeRange:
-              from: 180
+              from: 600
               to: 0
             datasourceUid: victoriametrics
             model:
@@ -20,7 +21,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: probe_success{job=~"blackbox-koha-opac|blackbox-koha-staff",env="prod",service="koha"}
+              expr: (node_filesystem_avail_bytes{job="node-exporter",env="prod",service="host",mountpoint=~"/data|/data2",fstype="xfs"} / node_filesystem_size_bytes{job="node-exporter",env="prod",service="host",mountpoint=~"/data|/data2",fstype="xfs"}) * 100
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -34,7 +35,7 @@ groups:
               conditions:
                 - evaluator:
                     params:
-                      - 1
+                      - 15
                     type: lt
                   operator:
                     type: and
@@ -53,19 +54,21 @@ groups:
               maxDataPoints: 43200
               refId: C
               type: threshold
-        noDataState: Alerting
+        noDataState: NoData
         execErrState: Error
-        for: 2m
+        for: 5m
         annotations:
-          summary: Website probe failed for koha-opac or koha-staff
-          runbook: docs/runbooks/website-probe.md
+          summary: "Вільне місце на {{ $labels.mountpoint }} нижче 15%"
+          description: "На {{ $labels.mountpoint }} ({{ $labels.fstype }}) залишилось менше 15% вільного місця. Поточне значення: {{ $values.A.Value }}%."
+          runbook: docs/runbooks/disk-space-low.md
         labels:
-          severity: critical
+          severity: warning
           env: prod
-          service: koha
+          service: host
+          component: storage
 
-      - uid: website-high-latency
-        title: WebsiteHighLatency
+      - uid: data-volumes-free-space-critical
+        title: DataVolumesFreeSpaceCritical
         condition: C
         data:
           - refId: A
@@ -78,7 +81,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: probe_duration_seconds{job=~"blackbox-koha-opac|blackbox-koha-staff",env="prod",service="koha"}
+              expr: (node_filesystem_avail_bytes{job="node-exporter",env="prod",service="host",mountpoint=~"/data|/data2",fstype="xfs"} / node_filesystem_size_bytes{job="node-exporter",env="prod",service="host",mountpoint=~"/data|/data2",fstype="xfs"}) * 100
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -92,7 +95,129 @@ groups:
               conditions:
                 - evaluator:
                     params:
-                      - 2
+                      - 5
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Критично мало вільного місця на {{ $labels.mountpoint }}"
+          description: "На {{ $labels.mountpoint }} ({{ $labels.fstype }}) залишилось менше 5% вільного місця. Поточне значення: {{ $values.A.Value }}%."
+          runbook: docs/runbooks/disk-space-low.md
+        labels:
+          severity: critical
+          env: prod
+          service: host
+          component: storage
+
+      # Прогноз вичерпання місця за трендом останніх 24 годин.
+      - uid: data-volumes-runout-predicted-warning
+        title: DataVolumesRunoutPredictedWarning
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 86400
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: predict_linear(node_filesystem_avail_bytes{job="node-exporter",env="prod",service="host",mountpoint=~"/data|/data2",fstype="xfs"}[24h], 345600)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: "Прогнозоване вичерпання місця на {{ $labels.mountpoint }}"
+          description: "{{ $labels.mountpoint }} може вичерпати вільне місце протягом наступних 4 днів за трендом останніх 24 годин. Прогноз вільних байтів через 4 дні: {{ $values.A.Value }}."
+          runbook: docs/runbooks/disk-space-low.md
+        labels:
+          severity: warning
+          env: prod
+          service: host
+          component: storage
+
+      # Середня read latency на backing block devices vdb/vdc.
+      - uid: data-volumes-read-latency-warning
+        title: DataVolumesReadLatencyWarning
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: victoriametrics
+            model:
+              datasource:
+                type: prometheus
+                uid: victoriametrics
+              editorMode: code
+              expr: (rate(node_disk_read_time_seconds_total{job="node-exporter",env="prod",service="host",device=~"vdb|vdc"}[5m]) / rate(node_disk_reads_completed_total{job="node-exporter",env="prod",service="host",device=~"vdb|vdc"}[5m])) and rate(node_disk_reads_completed_total{job="node-exporter",env="prod",service="host",device=~"vdb|vdc"}[5m]) > 0
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0.1
                     type: gt
                   operator:
                     type: and
@@ -115,133 +240,18 @@ groups:
         execErrState: Error
         for: 5m
         annotations:
-          summary: Website probe latency is above 2 seconds
-          runbook: docs/runbooks/website-probe.md
+          summary: "Висока read latency на {{ $labels.device }}"
+          description: "Backing block device {{ $labels.device }} має середню read latency понад 100ms протягом 5 хвилин. Поточне значення: {{ $values.A.Value }}s."
+          runbook: docs/runbooks/disk-space-low.md
         labels:
           severity: warning
           env: prod
-          service: koha
+          service: host
+          component: storage
 
-      - uid: matomo-down
-        title: MatomoDown
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange:
-              from: 300
-              to: 0
-            datasourceUid: victoriametrics
-            model:
-              datasource:
-                type: prometheus
-                uid: victoriametrics
-              editorMode: code
-              expr: probe_success{job="blackbox-matomo",env="prod",service="matomo"}
-              instant: true
-              intervalMs: 1000
-              maxDataPoints: 43200
-              refId: A
-          - refId: C
-            relativeTimeRange:
-              from: 0
-              to: 0
-            datasourceUid: __expr__
-            model:
-              conditions:
-                - evaluator:
-                    params:
-                      - 1
-                    type: lt
-                  operator:
-                    type: and
-                  query:
-                    params:
-                      - A
-                  reducer:
-                    params: []
-                    type: last
-                  type: query
-              datasource:
-                type: __expr__
-                uid: __expr__
-              expression: A
-              intervalMs: 1000
-              maxDataPoints: 43200
-              refId: C
-              type: threshold
-        noDataState: Alerting
-        execErrState: Error
-        for: 5m
-        annotations:
-          summary: "Matomo analytics is unavailable for 5 minutes"
-          description: "HTTP probe to Matomo ({{ $labels.instance }}) failed - TLS or HTTP status check failed"
-          runbook: docs/runbooks/matomo-down.md
-        labels:
-          severity: critical
-          env: prod
-          service: matomo
-
-      - uid: dspace-website-down
-        title: DSpaceWebsiteDown
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange:
-              from: 300
-              to: 0
-            datasourceUid: victoriametrics
-            model:
-              datasource:
-                type: prometheus
-                uid: victoriametrics
-              editorMode: code
-              expr: probe_success{job=~"blackbox-dspace-ui|blackbox-dspace-api",env="prod",service="dspace"}
-              instant: true
-              intervalMs: 1000
-              maxDataPoints: 43200
-              refId: A
-          - refId: C
-            relativeTimeRange:
-              from: 0
-              to: 0
-            datasourceUid: __expr__
-            model:
-              conditions:
-                - evaluator:
-                    params:
-                      - 1
-                    type: lt
-                  operator:
-                    type: and
-                  query:
-                    params:
-                      - A
-                  reducer:
-                    params: []
-                    type: last
-                  type: query
-              datasource:
-                type: __expr__
-                uid: __expr__
-              expression: A
-              intervalMs: 1000
-              maxDataPoints: 43200
-              refId: C
-              type: threshold
-        noDataState: Alerting
-        execErrState: Error
-        for: 5m
-        annotations:
-          summary: "DSpace UI or API is unavailable for 5 minutes"
-          description: "HTTP probe to DSpace ({{ $labels.instance }}) failed - UI/API status check failed"
-          runbook: docs/runbooks/website-probe.md
-        labels:
-          severity: critical
-          env: prod
-          service: dspace
-
-      - uid: dspace-website-high-latency
-        title: DSpaceWebsiteHighLatency
+      # Середня write latency на backing block devices vdb/vdc.
+      - uid: data-volumes-write-latency-warning
+        title: DataVolumesWriteLatencyWarning
         condition: C
         data:
           - refId: A
@@ -254,7 +264,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: probe_duration_seconds{job=~"blackbox-dspace-ui|blackbox-dspace-api",env="prod",service="dspace"}
+              expr: (rate(node_disk_write_time_seconds_total{job="node-exporter",env="prod",service="host",device=~"vdb|vdc"}[5m]) / rate(node_disk_writes_completed_total{job="node-exporter",env="prod",service="host",device=~"vdb|vdc"}[5m])) and rate(node_disk_writes_completed_total{job="node-exporter",env="prod",service="host",device=~"vdb|vdc"}[5m]) > 0
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -268,7 +278,7 @@ groups:
               conditions:
                 - evaluator:
                     params:
-                      - 2
+                      - 0.1
                     type: gt
                   operator:
                     type: and
@@ -291,10 +301,11 @@ groups:
         execErrState: Error
         for: 5m
         annotations:
-          summary: "DSpace UI or API latency is above 2 seconds"
-          description: "HTTP probe to DSpace ({{ $labels.instance }}) is slower than expected"
-          runbook: docs/runbooks/website-probe.md
+          summary: "Висока write latency на {{ $labels.device }}"
+          description: "Backing block device {{ $labels.device }} має середню write latency понад 100ms протягом 5 хвилин. Поточне значення: {{ $values.A.Value }}s."
+          runbook: docs/runbooks/disk-space-low.md
         labels:
           severity: warning
           env: prod
-          service: dspace
+          service: host
+          component: storage

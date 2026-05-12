@@ -146,3 +146,169 @@
 - Guard smoke-test з `STACK_NAME=victoriametrics-grafana` зупиняється до init/deploy і показує конфлікт із `monitoring_victoriametrics`.
 - **Risks:** Дубльований stack `victoriametrics-grafana` ще потрібно прибрати окремою явною операцією, щоб не лишати зайві сервіси.
 - **Rollback:** Відкотити guard/default stack name і повернути попередній приклад у `docs/scripts_runbook.md`.
+
+## [2026-05-07] — Swarm secrets: hash-based versioned secret render
+- **Context:** Swarm manifest використовує external Docker secrets через `*_SECRET_NAME`, але deploy path не створював hash-versioned secret names безпосередньо з decrypted orchestrator env.
+- **Change:**
+- Додано `scripts/render-versioned-env-secret.sh` за патерном DSpace:
+	- створює immutable Docker secrets з 12-символьним sha256 suffix;
+	- рендерить secret names для Grafana admin password, Grafana SMTP password, Koha MariaDB exporter password і Matomo MariaDB exporter password;
+	- оновлює generated `*_SECRET_NAME` у тимчасовому decrypted env-файлі без друку значень секретів.
+- `scripts/deploy-orchestrator-swarm.sh` тепер викликає render-versioned secrets після `render-scrape-config.sh` і до `docker compose config`.
+- Оновлено `docs/scripts_runbook.md` з manual execution для нового скрипта.
+- **Verification:** `bash -n` для змінених shell-скриптів; smoke-test нового render script на тимчасовому env-файлі з fake Docker CLI підтвердив hash suffix для всіх 4 generated secret names і оновлення env-файлу; `docker compose --env-file ... config` підтвердив підстановку versioned external secret names у Swarm manifest.
+- **Risks:** Скрипт вимагає непорожні значення всіх 4 secret values, бо `docker-compose.swarm.yml` завжди посилається на відповідні external secrets.
+- **Rollback:** Видалити `scripts/render-versioned-env-secret.sh`, прибрати його виклик з `deploy-orchestrator-swarm.sh` і відкотити runbook/changelog.
+
+## [2026-05-08] — Grafana auth: local login form + AzureAD public redirect URL
+- **Context:** Після налаштування Entra ID / MS365 Grafana одразу редіректила на AzureAD і ховала локальний login/password вхід. OAuth request також формував redirect URI як `http://localhost:3000/login/azuread`, що не збігалося з доменним redirect URI в Azure Portal.
+- **Change:**
+- Додано env-контракт у `.env.example`:
+	- `GRAFANA_ADMIN_USER=m.zhuk@ldubgd.edu.ua`
+	- `GRAFANA_ADMIN_EMAIL=m.zhuk@ldubgd.edu.ua`
+	- `GF_AUTH_DISABLE_LOGIN_FORM=false`
+	- `GF_AUTH_AZUREAD_ENABLED=false`
+	- `GF_AUTH_AZUREAD_AUTO_LOGIN=false`
+	- `GF_AUTH_AZUREAD_SKIP_ORG_ROLE_SYNC=true`
+	- `GF_AUTH_OAUTH_ALLOW_INSECURE_EMAIL_LOOKUP=true`
+	- `GF_SERVER_DOMAIN=grafana.example.com`
+	- `GF_SERVER_ROOT_URL=https://grafana.example.com`
+- Прокинуто ці змінні в `docker-compose.yml` і `docker-compose.swarm.yml`; для Swarm це обов'язково, бо `env_file` там скинутий.
+- `GF_AUTH_AZUREAD_ENABLED=false` вимикає Entra ID / AzureAD provider декларативно через IaC до повторного увімкнення.
+- `GF_AUTH_AZUREAD_SKIP_ORG_ROLE_SYNC=true` не дає OAuth login зняти роль останнього org admin під час MS365 role sync.
+- `GF_AUTH_OAUTH_ALLOW_INSECURE_EMAIL_LOOKUP=true` дозволяє OAuth-мапування існуючого користувача за email.
+- `GF_SERVER_ROOT_URL` керує публічною базовою URL Grafana, тому AzureAD redirect URI має формуватися як `https://<grafana-domain>/login/azuread`.
+- Runtime cleanup: через backup/replace `grafana.db` видалено окремого користувача `id=3` з login/email `m.zhuk@ldubgd.edu.ua`; server admin `id=1` перейменовано на login/email `m.zhuk@ldubgd.edu.ua` і name `Максим Жук`.
+- Runtime SSO fix: у DB `sso_setting` для provider `azuread` змінено тільки `skip_org_role_sync` з `false` на `true`, бо Entra ID був налаштований через Grafana UI і цей DB setting впливає на поточний OAuth login.
+- **Verification:** `docker compose config` для Swarm overlay пройшов успішно; local compose перевірено через тимчасову копію без `env_file`, бо реального `.env` немає в repo. Rendered config містить `GF_AUTH_DISABLE_LOGIN_FORM=false`, `GF_AUTH_AZUREAD_ENABLED=false`, `GF_AUTH_AZUREAD_AUTO_LOGIN=false`, `GF_AUTH_AZUREAD_SKIP_ORG_ROLE_SYNC=true`, `GF_AUTH_OAUTH_ALLOW_INSECURE_EMAIL_LOOKUP=true`, `GF_SERVER_DOMAIN` і `GF_SERVER_ROOT_URL`. Після runtime cleanup Grafana service зійшовся в `1/1`, у DB лишилися користувачі `id=1 m.zhuk@ldubgd.edu.ua` (admin) і `id=4 test1@ldubgd.edu.ua`. Після runtime SSO fix service зійшовся в `1/1`, а `sso_setting.azuread.skip_org_role_sync=true`.
+- **Risks:** У реальному `.env` потрібно виставити production-домен Grafana і додати точно такий redirect URI в Azure Portal.
+- **Rollback:** Прибрати нові `GF_AUTH_*` / `GF_SERVER_*` змінні з env-шаблону та compose-файлів.
+
+## [2026-05-08] — DB exporters: idempotent metrics_reader IaC + restore Koha/Matomo/PostgreSQL metrics
+- **Context:** У Grafana/VM не відображалися Koha MariaDB і Matomo MariaDB metrics, а PostgreSQL dashboard мав неповний набір метрик. Runtime exporter services були `1/1`, але exporter endpoints показували `mysql_up=0` / `pg_up=0`.
+- **Root cause:** Усі три exporter-и не проходили DB authentication:
+	- Koha MariaDB exporter: `Access denied for user 'metrics_reader'`;
+	- Matomo MariaDB exporter: `Access denied for user 'metrics_reader'`;
+	- PostgreSQL exporter: `password authentication failed for user "metrics_reader"`.
+- **Change:**
+- Додано `scripts/ensure-db-exporter-users.sh`:
+	- ідемпотентно створює/оновлює `metrics_reader` у Koha MariaDB, Matomo MariaDB і DSpace PostgreSQL;
+	- читає credentials із decrypted orchestrator env або fallback-ить на поточні exporter containers/secrets;
+	- не друкує паролі;
+	- застосовує мінімальні read-only grants для exporter-ів.
+- Додано env-контракт `KOHA_DB_CONTAINER_NAME` і `DSPACE_POSTGRES_CONTAINER_NAME` у `.env.example`.
+- `scripts/deploy-orchestrator-swarm.sh` тепер викликає `ensure-db-exporter-users.sh` після render versioned secrets і до render/deploy Swarm manifest (`ENSURE_DB_EXPORTER_USERS_ON_DEPLOY=false` вимикає цей крок).
+- Оновлено `docs/security/db-exporter-users.md` і `docs/scripts_runbook.md`.
+- Runtime: запущено `scripts/ensure-db-exporter-users.sh` проти поточних DB контейнерів і перезапущено тільки `monitoring_mariadb-exporter`, `monitoring_matomo-mariadb-exporter`, `monitoring_postgres-exporter`.
+- **Verification:**
+- `bash -n scripts/ensure-db-exporter-users.sh scripts/deploy-orchestrator-swarm.sh` успішний.
+- Koha exporter endpoint: `mysql_up 1`, `mysql_global_status_uptime` присутня.
+- Matomo exporter endpoint: `mysql_up 1`, `mysql_global_status_uptime` присутня.
+- PostgreSQL exporter endpoint: `pg_up 1`, `pg_exporter_last_scrape_error 0`, `pg_stat_database_numbackends{datname="dspace"}` присутня.
+- VictoriaMetrics query API повертає `mysql_up{job="mariadb-exporter"}=1`, `mysql_up{job="matomo-mariadb-exporter"}=1`, `pg_up{job="postgres-exporter"}=1`, `pg_stat_database_numbackends{job="postgres-exporter",datname="dspace"}`.
+- **Risks:** Скрипт очікує доступні app DB containers. Для деплоїв без Koha/Matomo/DSpace поруч можна встановити `ENSURE_DB_EXPORTER_USERS_ON_DEPLOY=false`.
+- **Rollback:** Відкотити скрипт/виклик у deploy path/docs/changelog; за потреби вручну повернути попередні DB grants/passwords для `metrics_reader`.
+
+## [2026-05-08] — Website probes: add DSpace UI/API blackbox jobs
+- **Context:** Website probes були налаштовані для Koha OPAC, Koha staff і Matomo, але DSpace не мав окремої synthetic HTTP probe. DSpace частково покривався PostgreSQL exporter, cAdvisor і Traefik metrics, але це не перевіряє зовнішню доступність UI/API без реального користувацького трафіку.
+- **Change:**
+- Додано env-змінні в `.env.example`:
+	- `DSPACE_UI_URL=https://dspace.example.com`
+	- `DSPACE_API_URL=https://dspace-api.example.com/server`
+- Оновлено `scripts/render-scrape-config.sh`: читає, валідує `http(s)://` і підставляє `DSPACE_UI_URL` / `DSPACE_API_URL`.
+- Оновлено `victoria-metrics/scrape-config.tmpl.yml`:
+	- `blackbox-dspace-ui` з labels `service="dspace"`, `website="ui"`;
+	- `blackbox-dspace-api` з labels `service="dspace"`, `website="api"`.
+- Додано alert rules у `grafana/provisioning/alerting/website-alerts.yml`:
+	- `DSpaceWebsiteDown`;
+	- `DSpaceWebsiteHighLatency`.
+- Оновлено `docs/configuration/exporters-config.md` і `docs/scripts_runbook.md`.
+- **Verification:** `bash -n scripts/render-scrape-config.sh` успішний; render перевірено на тимчасовому env-файлі з DSpace URL без зміни `env.*.enc`.
+- **Risks:** До наступного deploy/render потрібно додати `DSPACE_UI_URL` і `DSPACE_API_URL` у реальний decrypted env (`env.*.enc` після розшифрування), інакше `render-scrape-config.sh` очікувано зупиниться.
+- **Rollback:** Видалити DSpace env-змінні, template jobs, alert rules і документацію; перерендерити `victoria-metrics/scrape-config.yml`.
+
+## [2026-05-08] — Cloudflare Tunnel metrics: external edge scrape target
+- **Context:** Cloudflare Tunnel винесений у зовнішній edge stack, до якого підключений Traefik; контейнер `cloudflared` не повертаємо в monitoring compose/swarm stack.
+- **Change:**
+- Додано env-контракт у `.env.example`:
+	- `CLOUDFLARE_TUNNEL_METRICS_TARGET=cf_tunnel_tunnel:2000`
+	- `CLOUDFLARE_TUNNEL_NAME=grafana`
+- Оновлено `scripts/render-scrape-config.sh`: читає, валідує `host:port` target без URL-схеми і підставляє Cloudflare Tunnel labels.
+- Оновлено `victoria-metrics/scrape-config.tmpl.yml`: додано scrape job `cloudflare-tunnel` з labels `service="cloudflare"`, `component="tunnel"`.
+- Оновлено label schema ADR і документацію для external edge stack моделі.
+- **Verification:** `bash -n scripts/render-scrape-config.sh` і `git diff --check` успішні; render smoke у тимчасовій копії через `.env.example` створив job `cloudflare-tunnel` з target `cf_tunnel_tunnel:2000` і labels `service="cloudflare"`, `component="tunnel"`, `tunnel="grafana"`.
+- **Risks:** До наступного deploy/render потрібно додати `CLOUDFLARE_TUNNEL_METRICS_TARGET` і `CLOUDFLARE_TUNNEL_NAME` у реальний decrypted env (`env.*.enc` після розшифрування), інакше `render-scrape-config.sh` очікувано зупиниться.
+- **Rollback:** Видалити Cloudflare env-змінні, scrape job, label schema/doc updates і перерендерити `victoria-metrics/scrape-config.yml`.
+
+## [2026-05-08] — Cloudflare Tunnel dashboard: provisioned Grafana overview
+- **Context:** Після додання scrape job `cloudflare-tunnel` потрібен provisioned Grafana dashboard для tunnel health, traffic і QUIC transport metrics.
+- **Change:**
+- Додано dashboard `grafana/dashboards/cloudflare-tunnel-overview.json` з uid `kdi-cloudflare-tunnel-overview`.
+- Панелі покривають:
+	- scrape status;
+	- HA connections;
+	- request/error rate;
+	- concurrent requests;
+	- QUIC RTT і lost packets;
+	- current edge locations;
+	- `cloudflared` build info.
+- Dashboard використовує datasource `uid: victoriametrics` і labels `job="cloudflare-tunnel"`, `env="prod"`, `tunnel`.
+- Оновлено `grafana/dashboards/README.md` і `docs/dashboards/dashboard-catalog.md`.
+- **Verification:** `jq empty grafana/dashboards/cloudflare-tunnel-overview.json` і `git diff --check` успішні; grep-перевірка підтвердила `uid`, datasource `victoriametrics` і query references на `cloudflare-tunnel` / `cloudflared_tunnel_*` / `quic_client_*`.
+- **Risks:** Частина панелей буде `No data`, доки external `cloudflared` metrics endpoint не стане доступним для VictoriaMetrics і не почне віддавати відповідні метрики.
+- **Rollback:** Видалити dashboard JSON і записи з dashboard docs/catalog.
+
+## [2026-05-08] — Cloudflare Tunnel alerts: metrics, HA, proxy errors, QUIC loss
+- **Context:** Після додання Cloudflare Tunnel scrape job і dashboard потрібні alert-и на базові ризики external edge stack.
+- **Change:**
+- Додано Prometheus-style catalog rules у `alerting/rules/cloudflare.yml`:
+	- `CloudflareTunnelMetricsDown` — critical, якщо `up < 1` понад 2 хвилини;
+	- `CloudflareTunnelHAConnectionsLow` — warning, якщо HA connections < 2 понад 5 хвилин;
+	- `CloudflareTunnelRequestErrorsHigh` — warning, якщо origin proxy error rate > 1% понад 5 хвилин;
+	- `CloudflareTunnelQUICPacketLossHigh` — warning, якщо QUIC lost packets > 1 packet/sec понад 5 хвилин.
+- Додано Grafana provisioning rules у `grafana/provisioning/alerting/cloudflare-alerts.yml`.
+- Додано runbook `docs/runbooks/cloudflare-tunnel.md`.
+- Оновлено `docs/alerting/alert-rules-catalog.md`.
+- **Verification:** YAML parse для `alerting/rules/cloudflare.yml` і `grafana/provisioning/alerting/cloudflare-alerts.yml` успішний; grep-перевірка підтвердила всі rule UID/title/runbook references; `git diff --check` успішний.
+- **Risks:** До фактичного scrape target up правила з `NoDataState=Alerting` для `CloudflareTunnelMetricsDown` можуть перейти в firing, якщо provisioning застосувати до того, як `cloudflared` metrics endpoint доступний.
+- **Rollback:** Видалити `cloudflare-alerts.yml`, `alerting/rules/cloudflare.yml`, runbook/catalog записи і перезапустити Grafana.
+
+## [2026-05-08] — Docs: remove stale in-repo cloudflared deployment steps
+- **Context:** `docs/deployment/monitoring-stack-deploy.md` досі описував старий `cloudflared` service/profile `phase1-edge` і `CLOUDFLARE_TUNNEL_TOKEN`, хоча tunnel винесений у зовнішній edge stack.
+- **Change:** Оновлено Cloudflare Tunnel deployment section: зафіксовано, що `cloudflared` не запускається з цього репозиторію, а monitoring stack використовує тільки `CLOUDFLARE_GRAFANA_HOSTNAME` і external metrics target `CLOUDFLARE_TUNNEL_METRICS_TARGET`.
+- **Verification:** `rg` підтвердив, що deployment doc більше не містить `phase1-edge`, `CLOUDFLARE_TUNNEL_TOKEN` або команд запуску `cloudflared` з цього repo; `git diff --check` успішний.
+- **Risks:** Реальні інструкції запуску зовнішнього edge stack лишаються поза цим репозиторієм.
+- **Rollback:** Повернути попередній текст розділу Cloudflare Tunnel у deployment doc.
+
+## [2026-05-08] — Cloudflare Tunnel metrics target: fix Swarm DNS name
+- **Context:** Dashboard `KDI Cloudflare Tunnel Overview` з'явився у Grafana, але не показував дані. Runtime scrape config використовував target `cloudflared:2000`, який не резолвиться з контейнера VictoriaMetrics у Swarm.
+- **Root cause:** Реальний external edge service у Swarm має DNS name `cf_tunnel_tunnel` у мережі `proxy-net`.
+- **Change:**
+- Оновлено `.env.example`, deployment doc і generated `victoria-metrics/scrape-config.yml` на `CLOUDFLARE_TUNNEL_METRICS_TARGET=cf_tunnel_tunnel:2000`.
+- `env.dev.enc` / `env.prod.enc` не оновлено автоматично, бо SOPS update command не був дозволений; їх потрібно синхронізувати вручну.
+- **Verification:** З контейнера `monitoring_victoriametrics` endpoint `http://cf_tunnel_tunnel:2000/metrics` повертає `cloudflared_tunnel_*`, `quic_client_*` і `build_info`; endpoint `http://cloudflared:2000/metrics` повертає DNS error `bad address`.
+- **Risks:** Якщо `env.*.enc` лишиться зі старим `cloudflared:2000`, наступний render/deploy поверне неробочий target.
+- **Rollback:** Повернути target на попереднє значення тільки якщо в edge stack буде доданий alias `cloudflared` у спільній мережі.
+
+## [2026-05-08] — Cloudflare Tunnel dashboard: remove absent active streams metric
+- **Context:** Після перезапуску `monitoring_victoriametrics` target `cloudflare-tunnel` став `1/1 up`, але поточний `cloudflared` metrics endpoint не віддає `cloudflared_tunnel_active_streams`.
+- **Change:** Оновлено `grafana/dashboards/cloudflare-tunnel-overview.json`: панель `Active streams and concurrent requests` перейменовано на `Concurrent requests` і залишено тільки фактичну метрику `cloudflared_tunnel_concurrent_requests_per_tunnel`.
+- **Verification:** Runtime query для `cloudflared_tunnel_active_streams{job="cloudflare-tunnel"}` повернув порожній result; `cloudflared_tunnel_concurrent_requests_per_tunnel`, `cloudflared_tunnel_ha_connections`, `cloudflared_tunnel_total_requests`, `cloudflared_tunnel_request_errors`, `cloudflared_tunnel_server_locations`, `quic_client_latest_rtt`, `quic_client_smoothed_rtt`, `quic_client_lost_packets` і `build_info` повертають дані.
+- **Risks:** Якщо в майбутній версії `cloudflared` метрика `active_streams` повернеться, її можна додати назад окремою панеллю.
+- **Rollback:** Повернути попередній query `cloudflared_tunnel_active_streams` у dashboard.
+
+## [2026-05-08] — VictoriaMetrics backup: separate rclone cloud retention
+- **Context:** Локальний backup VictoriaMetrics мав тільки `VM_BACKUP_RETENTION_COUNT`; для Google Drive через rclone потрібен окремий retention cloud-копій.
+- **Change:**
+- Оновлено `scripts/backup-victoriametrics-volume.sh`:
+	- додано опційний upload архіву і `.sha256` через rclone у `${RCLONE_REMOTE}:${RCLONE_DEST_PATH}`;
+	- додано окрему ротацію cloud backup-ів за `VM_BACKUP_CLOUD_RETENTION_COUNT`;
+	- локальна ротація за `VM_BACKUP_RETENTION_COUNT` залишена без змін.
+- Додано env-контракт у `.env.example`:
+	- `VM_BACKUP_CLOUD_RETENTION_COUNT=30`
+	- `RCLONE_REMOTE=gdrive-backup`
+	- `RCLONE_DEST_PATH=victoriametrics`
+- Оновлено `docs/scripts_runbook.md`, `docs/configuration/retention-policy.md` і `docs/deployment/monitoring-stack-deploy.md`.
+- **Verification:** `bash -n scripts/backup-victoriametrics-volume.sh` і `git diff --check` успішні.
+- **Risks:** Для cloud upload на host має бути налаштований rclone remote `gdrive-backup`; якщо задано тільки одну з `RCLONE_REMOTE` / `RCLONE_DEST_PATH`, скрипт очікувано завершується помилкою.
+- **Rollback:** Прибрати rclone upload/rotation із backup-скрипта і видалити `VM_BACKUP_CLOUD_RETENTION_COUNT`, `RCLONE_REMOTE`, `RCLONE_DEST_PATH` з env/docs.
