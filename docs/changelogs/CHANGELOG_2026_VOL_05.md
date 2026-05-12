@@ -60,3 +60,11 @@
 - **Verification:** VictoriaMetrics повертає актуальні Traefik services з labels `dspace-api@swarm`, `dspace-ui@swarm`, `grafana@swarm`, `koha-opac@swarm`, `koha-staff@swarm`, `matomo@swarm`, `portainer@swarm`; старий фільтр `.*@docker` повертав empty vector.
 - **Risks:** Якщо у майбутньому Traefik provider label зміниться на інший suffix, змінну dashboard потрібно буде розширити.
 - **Rollback:** Повернути фільтр змінної `service` у dashboard до `.*@docker`.
+
+## [2026-05-12] — VictoriaMetrics scrape config: refresh Swarm service on config changes
+- **Context:** Dashboard `KDI Cloudflare Tunnel Overview` не показував Cloudflare metrics після додання scrape job, хоча endpoint `http://cf_tunnel_tunnel:2000/metrics` був доступний з контейнера VictoriaMetrics і віддавав `cloudflared_tunnel_*`/`quic_client_*`.
+- **Root cause:** `scripts/render-scrape-config.sh` оновлює `victoria-metrics/scrape-config.yml` через атомарний `mv`; Swarm service мав file-level bind mount на старий inode, тому runtime `/etc/vm/scrape-config.yml` і `/config` у VictoriaMetrics не містили job `cloudflare-tunnel`.
+- **Change:** Оновлено `scripts/deploy-orchestrator-swarm.sh`: deploy тепер рахує checksum scrape config до/після render і, якщо файл змінився, після `docker stack deploy` виконує `docker service update --force ${STACK_NAME}_victoriametrics`; якщо service ще не існує, deploy лишає старт нового task зі свіжим bind mount.
+- **Verification:** Ручний `docker service update --force monitoring_victoriametrics` відновив Cloudflare metrics у Grafana; `bash -n scripts/deploy-orchestrator-swarm.sh` і `git diff --check` успішні.
+- **Risks:** Зміна restart-ить тільки VictoriaMetrics і тільки при зміні scrape config; під час rolling update можливий короткий розрив scrape/query availability.
+- **Rollback:** Видалити checksum-gate і `docker service update --force` блок із `scripts/deploy-orchestrator-swarm.sh`; після ручних змін scrape config знову потрібен явний restart VictoriaMetrics service.
