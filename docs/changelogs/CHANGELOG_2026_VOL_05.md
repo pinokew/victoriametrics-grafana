@@ -53,3 +53,10 @@
 - **Verification:** YAML parse для `grafana/provisioning/alerting/data-volumes.yml` і `alerting/rules/data-volumes.yml` успішний; VictoriaMetrics API повертає series для `/data`, `/data2`, `vdb` і `vdc`; free-space expressions показали `/data` ~98.03% і `/data2` ~97.61% вільного місця, threshold queries повернули empty vector у healthy стані; `predict_linear` повернув позитивний прогноз вільних байтів для обох volume-ів; read/write latency expressions повернули значення значно нижче 100ms, threshold queries повернули empty vector; `docker service update --force monitoring_grafana` завершився `converged`, Grafana logs показали `finished to provision alerting`, а Grafana DB містить UID/title нових `DataVolumes*` правил.
 - **Risks:** Якщо labels node-exporter відрізняються від `job="node-exporter", env="prod", service="host"` або device names зміняться після перезавантаження VM, алерти перейдуть у no-data.
 - **Rollback:** Видалити `grafana/provisioning/alerting/data-volumes.yml`, `alerting/rules/data-volumes.yml` і записи з catalog/changelog.
+
+## [2026-05-12] — Traefik dashboard: support Swarm service labels
+- **Context:** Після переведення Traefik на Docker Swarm network частина панелей Grafana dashboard не показувала service-level метрики, хоча VictoriaMetrics scrape target `job="traefik"` був `UP`.
+- **Change:** Оновлено `grafana/dashboards/traefik-v3-official-17346.json`: змінна `service` тепер приймає labels `.*@(docker|swarm)` замість тільки `.*@docker`.
+- **Verification:** VictoriaMetrics повертає актуальні Traefik services з labels `dspace-api@swarm`, `dspace-ui@swarm`, `grafana@swarm`, `koha-opac@swarm`, `koha-staff@swarm`, `matomo@swarm`, `portainer@swarm`; старий фільтр `.*@docker` повертав empty vector.
+- **Risks:** Якщо у майбутньому Traefik provider label зміниться на інший suffix, змінну dashboard потрібно буде розширити.
+- **Rollback:** Повернути фільтр змінної `service` у dashboard до `.*@docker`.

@@ -1534,15 +1534,15 @@
           "type": "prometheus",
           "uid": "victoriametrics"
         },
-        "allValue": ".*@docker",
-        "definition": "label_values(traefik_service_requests_total{service=~\".*@docker\"}, service)",
+        "allValue": ".*@(docker|swarm)",
+        "definition": "label_values(traefik_service_requests_total{service=~\".*@(docker|swarm)\"}, service)",
         "hide": 0,
         "includeAll": true,
         "multi": false,
         "name": "service",
         "options": [],
         "query": {
-          "query": "label_values(traefik_service_requests_total{service=~\".*@docker\"}, service)",
+          "query": "label_values(traefik_service_requests_total{service=~\".*@(docker|swarm)\"}, service)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,
