@@ -74,7 +74,9 @@
 
 ## Matomo DB Size Metric (Phase 6)
 - Скрипт: `scripts/collect-matomo-db-size.sh`
-- Джерело: `information_schema.tables` у контейнері `matomo-db`
+- Джерело: `information_schema.tables` у Matomo DB контейнері.
+- Контейнер береться з `MATOMO_DB_CONTAINER_NAME`; якщо exact name не знайдено, скрипт також шукає Swarm task name на кшталт `matomo_matomo-db.1.*`.
+- Назва схеми береться з `DB_NAME` у контейнері; якщо вона порожня, використовується `MATOMO_DB_NAME` з env-file або дефолт `matomo`.
 - Механізм експорту: `node-exporter` textfile collector
 - Prometheus-метрики:
 	- `kdi_matomo_database_size_bytes`
@@ -100,7 +102,8 @@
 
 ## Matomo Archiving Freshness Metric (Phase 6)
 - Скрипт: `scripts/collect-matomo-archiving-metric.sh`
-- Джерело: `docker logs --timestamps matomo-cron`
+- Джерело: `docker logs --timestamps` Matomo cron контейнера.
+- Контейнер береться з `MATOMO_CRON_CONTAINER_NAME`; якщо exact name не знайдено, скрипт також шукає Swarm task name на кшталт `matomo_matomo-cron.1.*`.
 - Success marker: рядок `Done archiving!`
 - Механізм експорту: `node-exporter` textfile collector
 - Метрики:

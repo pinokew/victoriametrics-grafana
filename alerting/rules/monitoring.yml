@@ -3,7 +3,7 @@ groups:
     interval: 1m
     rules:
       - alert: VictoriaMetricsDown
-        expr: absent_over_time(up{job="victoriametrics",env="prod",service="monitoring"}[2m])
+        expr: (max(present_over_time(up{job="victoriametrics",env="prod",service="monitoring"}[2m])) or vector(0)) < 1
         for: 2m
         labels:
           severity: critical

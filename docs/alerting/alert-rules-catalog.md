@@ -11,6 +11,8 @@
 ## Inhibition/Suppression
 - Для `ContainerDown`, `MariaDB*`, `PostgreSQL*` додано guard `and on() (max(up{job="node-exporter",...}) == 1)`.
 - Це пригнічує flood secondary alert-ів, коли сам host недоступний.
+- Для Grafana provisioning rules, які в healthy-стані раніше повертали empty vector, використовується числовий healthy-state через `present_over_time(...) or vector(0)` або `... or vector(0)`.
+- `ContainerDown` рахує очікувані monitoring containers з урахуванням Docker Compose і Swarm task names `monitoring_<service>.1.*`.
 
 ## VictoriaMetricsDown Semantics
 - `VictoriaMetricsDown` налаштовано як `severity=critical`, `for=2m`.
@@ -28,7 +30,8 @@
 | HostDiskWarning | warning | 5m | `docs/runbooks/disk-space-low.md` |
 | ContainerDown | critical | 2m | `docs/runbooks/container-down.md` |
 | ContainerHighRestarts | warning | 5m | `docs/runbooks/container-down.md` |
-| MariaDBDown | critical | 2m | `docs/runbooks/monitoring-down.md` |
+| KohaMariaDBDown | critical | 2m | `docs/runbooks/monitoring-down.md` |
+| MatomoMariaDBDown | critical | 2m | `docs/runbooks/monitoring-down.md` |
 | MariaDBConnectionsHigh | critical | 5m | `docs/runbooks/database-connections-high.md` |
 | PostgreSQLDown | critical | 2m | `docs/runbooks/monitoring-down.md` |
 | PostgreSQLConnectionsHigh | critical | 5m | `docs/runbooks/database-connections-high.md` |

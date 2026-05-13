@@ -33,21 +33,50 @@ abs_path() {
   fi
 }
 
+resolve_docker_container_name() {
+  local wanted="$1"
+
+  docker ps --format '{{.Names}}' | awk -v wanted="$wanted" '
+    $0 == wanted {
+      print
+      found = 1
+      exit
+    }
+    index($0, wanted ".1.") == 1 {
+      print
+      found = 1
+      exit
+    }
+    index($0, "_" wanted ".1.") > 0 {
+      print
+      found = 1
+      exit
+    }
+    END {
+      if (!found) {
+        exit 0
+      }
+    }
+  '
+}
+
 NODE_EXPORTER_TEXTFILE_DIR="$(read_env_or_default NODE_EXPORTER_TEXTFILE_DIR "$ENV_FILE" "./.data/node-exporter-textfile")"
 MATOMO_DB_CONTAINER_NAME="$(read_env_or_default MATOMO_DB_CONTAINER_NAME "$ENV_FILE" "matomo-db")"
+MATOMO_DB_NAME="$(read_env_or_default MATOMO_DB_NAME "$ENV_FILE" "matomo")"
 MATOMO_MARIADB_EXPORTER_USER="$(read_env_or_default MATOMO_MARIADB_EXPORTER_USER "$ENV_FILE" "metrics_reader")"
 MATOMO_MARIADB_EXPORTER_PASSWORD="$(read_env_or_default MATOMO_MARIADB_EXPORTER_PASSWORD "$ENV_FILE" "")"
 TEXTFILE_DIR_ABS="$(abs_path "$NODE_EXPORTER_TEXTFILE_DIR")"
 collect_timestamp="$(date +%s)"
 metric_status="0"
 db_size_bytes="0"
+matomo_db_container="$(resolve_docker_container_name "$MATOMO_DB_CONTAINER_NAME")"
 
 if [[ -z "$MATOMO_MARIADB_EXPORTER_PASSWORD" ]]; then
   echo "ERROR: MATOMO_MARIADB_EXPORTER_PASSWORD is required"
   exit 1
 fi
 
-if ! docker ps --format '{{.Names}}' | grep -qx "$MATOMO_DB_CONTAINER_NAME"; then
+if [[ -z "$matomo_db_container" ]]; then
   echo "ERROR: Matomo DB container is not running: $MATOMO_DB_CONTAINER_NAME"
   exit 1
 fi
@@ -77,16 +106,20 @@ EOF
 
 trap 'emit_metrics' EXIT
 
-db_name="matomo"
+db_name="$MATOMO_DB_NAME"
 
-db_name="$(docker exec "$MATOMO_DB_CONTAINER_NAME" sh -lc 'printf "%s" "$DB_NAME"')"
+container_db_name="$(docker exec "$matomo_db_container" sh -lc 'printf "%s" "$DB_NAME"')"
+if [[ -n "$container_db_name" ]]; then
+  db_name="$container_db_name"
+fi
+
 if [[ -z "$db_name" ]]; then
-  echo "ERROR: DB_NAME is empty in container $MATOMO_DB_CONTAINER_NAME"
+  echo "ERROR: Matomo database name is empty; set MATOMO_DB_NAME in env-file or DB_NAME in $matomo_db_container"
   exit 1
 fi
 
 query="SELECT COALESCE(SUM(data_length + index_length), 0) FROM information_schema.tables WHERE table_schema = '$db_name';"
-db_size_bytes="$(docker exec -e MYSQL_PWD="$MATOMO_MARIADB_EXPORTER_PASSWORD" "$MATOMO_DB_CONTAINER_NAME" sh -lc "mariadb -h127.0.0.1 -u \"$MATOMO_MARIADB_EXPORTER_USER\" -Nse \"$query\"")"
+db_size_bytes="$(docker exec -e MYSQL_PWD="$MATOMO_MARIADB_EXPORTER_PASSWORD" "$matomo_db_container" sh -lc "mariadb -h127.0.0.1 -u \"$MATOMO_MARIADB_EXPORTER_USER\" -Nse \"$query\"")"
 
 if [[ ! "$db_size_bytes" =~ ^[0-9]+$ ]]; then
   echo "ERROR: Unexpected DB size value: $db_size_bytes"

@@ -133,6 +133,7 @@ ORCHESTRATOR_ENV_FILE=/tmp/env.decrypted \
 - Знаходить останній success marker `Done archiving!` у Docker logs Matomo cron контейнера.
 - Публікує textfile metrics `matomo_archiving_last_*` для node-exporter.
 - Читає `NODE_EXPORTER_TEXTFILE_DIR` і `MATOMO_CRON_CONTAINER_NAME` через env-file без `source`.
+- Якщо exact Docker container name не знайдено, підтримує Swarm task names із суфіксом `.1.*`.
 
 #### Manual execution
 
@@ -148,6 +149,8 @@ ORCHESTRATOR_ENV_FILE=/tmp/env.decrypted bash scripts/collect-matomo-archiving-m
 - Обчислює розмір схеми Matomo через `information_schema.tables`.
 - Публікує textfile metrics `kdi_matomo_database_size_*`.
 - Читає exporter password через env-file без `source` і не друкує значення секрету.
+- Якщо exact Docker container name не знайдено, підтримує Swarm task names із суфіксом `.1.*`.
+- Назву схеми бере з `DB_NAME` у контейнері або fallback `MATOMO_DB_NAME` з env-file.
 
 #### Manual execution
 

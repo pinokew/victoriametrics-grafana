@@ -252,7 +252,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: absent_over_time(container_last_seen{job="cadvisor",env="prod",service="host",name=~"victoriametrics|grafana|node-exporter|cadvisor|mariadb-exporter|postgres-exporter"}[2m]) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+              expr: count(container_last_seen{job="cadvisor",env="prod",service="host",name=~"(victoriametrics|grafana|node-exporter|cadvisor|mariadb-exporter|matomo-mariadb-exporter|postgres-exporter|monitoring_(victoriametrics|grafana|node-exporter|cadvisor|mariadb-exporter|matomo-mariadb-exporter|postgres-exporter)\\..*)"}) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -266,8 +266,8 @@ groups:
               conditions:
                 - evaluator:
                     params:
-                      - 0
-                    type: gt
+                      - 7
+                    type: lt
                   operator:
                     type: and
                   query:
@@ -310,7 +310,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: changes(container_start_time_seconds{job="cadvisor",env="prod",service="host",name=~"victoriametrics|grafana|node-exporter|cadvisor|mariadb-exporter|postgres-exporter"}[1h])
+              expr: changes(container_start_time_seconds{job="cadvisor",env="prod",service="host",name=~"(victoriametrics|grafana|node-exporter|cadvisor|mariadb-exporter|matomo-mariadb-exporter|postgres-exporter|monitoring_(victoriametrics|grafana|node-exporter|cadvisor|mariadb-exporter|matomo-mariadb-exporter|postgres-exporter)\\..*)"}[1h])
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -368,7 +368,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: absent_over_time(mysql_up{job="mariadb-exporter",env="prod",service="koha",component="db"}[2m]) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+              expr: (max(present_over_time(mysql_up{job="mariadb-exporter",env="prod",service="koha",component="db"}[2m])) or vector(0)) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -382,8 +382,8 @@ groups:
               conditions:
                 - evaluator:
                     params:
-                      - 0
-                    type: gt
+                      - 1
+                    type: lt
                   operator:
                     type: and
                   query:
@@ -486,7 +486,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: absent_over_time(mysql_up{job="matomo-mariadb-exporter",env="prod",service="matomo",component="db"}[2m]) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+              expr: (max(present_over_time(mysql_up{job="matomo-mariadb-exporter",env="prod",service="matomo",component="db"}[2m])) or vector(0)) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -500,8 +500,8 @@ groups:
               conditions:
                 - evaluator:
                     params:
-                      - 0
-                    type: gt
+                      - 1
+                    type: lt
                   operator:
                     type: and
                   query:
@@ -604,7 +604,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: kdi_matomo_database_size_bytes{job="node-exporter",env="prod",service="host",exported_service="matomo",component="db",database="matomo"}
+              expr: max(kdi_matomo_database_size_bytes{job="node-exporter",env="prod",service="host",exported_service="matomo",component="db",database="matomo"}) or vector(0)
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -664,7 +664,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: (time() - matomo_archiving_last_success_timestamp{job="node-exporter",env="prod",service="host",exported_service="matomo"})
+              expr: time() - (max(matomo_archiving_last_success_timestamp{job="node-exporter",env="prod",service="host",exported_service="matomo"}) or vector(0))
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -841,7 +841,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: absent_over_time(pg_up{job="postgres-exporter",env="prod",service="dspace",component="db"}[2m]) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+              expr: (max(present_over_time(pg_up{job="postgres-exporter",env="prod",service="dspace",component="db"}[2m])) or vector(0)) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -855,8 +855,8 @@ groups:
               conditions:
                 - evaluator:
                     params:
-                      - 0
-                    type: gt
+                      - 1
+                    type: lt
                   operator:
                     type: and
                   query:
@@ -959,7 +959,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: (sum(rate(traefik_service_requests_total{job="traefik",env="prod",code=~"5.."}[5m])) / sum(rate(traefik_service_requests_total{job="traefik",env="prod"}[5m])) * 100)
+              expr: ((sum(rate(traefik_service_requests_total{job="traefik",env="prod",code=~"5.."}[5m])) or vector(0)) / clamp_min((sum(rate(traefik_service_requests_total{job="traefik",env="prod"}[5m])) or vector(0)), 1)) * 100
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -1075,7 +1075,7 @@ groups:
                 type: prometheus
                 uid: victoriametrics
               editorMode: code
-              expr: absent_over_time(up{job="victoriametrics",env="prod",service="monitoring"}[2m])
+              expr: max(present_over_time(up{job="victoriametrics",env="prod",service="monitoring"}[2m])) or vector(0)
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -1089,8 +1089,8 @@ groups:
               conditions:
                 - evaluator:
                     params:
-                      - 0
-                    type: gt
+                      - 1
+                    type: lt
                   operator:
                     type: and
                   query:

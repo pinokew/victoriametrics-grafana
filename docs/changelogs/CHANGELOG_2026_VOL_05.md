@@ -68,3 +68,19 @@
 - **Verification:** Ручний `docker service update --force monitoring_victoriametrics` відновив Cloudflare metrics у Grafana; `bash -n scripts/deploy-orchestrator-swarm.sh` і `git diff --check` успішні.
 - **Risks:** Зміна restart-ить тільки VictoriaMetrics і тільки при зміні scrape config; під час rolling update можливий короткий розрив scrape/query availability.
 - **Rollback:** Видалити checksum-gate і `docker service update --force` блок із `scripts/deploy-orchestrator-swarm.sh`; після ручних змін scrape config знову потрібен явний restart VictoriaMetrics service.
+
+## [2026-05-13] — Alert noise hardening for Grafana NoData and Swarm container names
+- **Context:** Періодично надходили `DatasourceNoData`/container alerts, хоча scrape targets і контейнери були `UP`; live VictoriaMetrics queries показали empty vector для healthy `absent_over_time` rules, старий Compose-only cAdvisor regex і невдалий Matomo archiving collector через Swarm task names.
+- **Change:**
+- Оновлено Grafana provisioning і Prometheus-style rules:
+	- DB/VictoriaMetrics down rules переведено на `present_over_time(...) or vector(0)` з threshold `< 1`;
+	- `TraefikHighErrorRate` отримав fallback `or vector(0)` і `clamp_min`, щоб відсутність 5xx series не ставала NoData;
+	- `MatomoDatabaseSizeHigh` і `MatomoArchivingStale` отримали numeric fallback замість empty vector;
+	- `ContainerDown` тепер рахує очікувані monitoring containers і підтримує Swarm names `monitoring_<service>.1.*`;
+	- `ContainerHighRestarts` підтримує Compose і Swarm container names.
+- Оновлено `scripts/collect-matomo-archiving-metric.sh` і `scripts/collect-matomo-db-size.sh`: якщо exact container name з env не знайдено, скрипти шукають Swarm task name із суфіксом `.1.*`.
+- `scripts/collect-matomo-db-size.sh` тепер використовує `MATOMO_DB_NAME` з env-file або дефолт `matomo`, якщо `DB_NAME` у Matomo DB контейнері порожній.
+- Оновлено `docs/alerting/alert-rules-catalog.md`, `docs/configuration/exporters-config.md` і `docs/scripts_runbook.md`.
+- **Verification:** `bash -n` для Matomo collector scripts успішний; YAML parse для змінених alert/provisioning files успішний; `git diff --check` успішний; live VictoriaMetrics queries повертають numeric healthy values для DB/VictoriaMetrics/Traefik/container/Matomo DB size rules; `collect-matomo-archiving-metric.sh` оновив `matomo_archiving_last_success_timestamp` і status `1`; `collect-matomo-db-size.sh` з `MATOMO_DB_NAME=matomo` записав `kdi_matomo_database_size_bytes=31031296` і status `1`.
+- **Risks:** `ContainerDown` очікує 7 monitoring containers; якщо склад monitoring stack зміниться, поріг треба оновити разом із regex.
+- **Rollback:** Повернути попередні PromQL expressions і видалити fallback resolution для Swarm task names у Matomo collector scripts.
