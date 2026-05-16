@@ -1,5 +1,14 @@
 apiVersion: 1
 
+muteTimes:
+  - orgId: 1
+    name: daily-backup-window
+    time_intervals:
+      - times:
+          - start_time: '00:55'
+            end_time: '01:45'
+        location: Europe/Kyiv
+
 policies:
   - orgId: 1
     receiver: warning-email
@@ -15,13 +24,17 @@ policies:
       - receiver: critical-email-telegram
         object_matchers:
           - - severity
-            - =
+            - '='
             - critical
+        mute_time_intervals:
+          - daily-backup-window
         continue: false
 
       - receiver: warning-email
         object_matchers:
           - - severity
-            - =
+            - '='
             - warning
+        mute_time_intervals:
+          - daily-backup-window
         continue: false

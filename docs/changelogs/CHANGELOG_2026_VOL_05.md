@@ -69,6 +69,12 @@
 - **Risks:** Зміна restart-ить тільки VictoriaMetrics і тільки при зміні scrape config; під час rolling update можливий короткий розрив scrape/query availability.
 - **Rollback:** Видалити checksum-gate і `docker service update --force` блок із `scripts/deploy-orchestrator-swarm.sh`; після ручних змін scrape config знову потрібен явний restart VictoriaMetrics service.
 
+## [2026-05-16] — Grafana mute timing for daily backup window
+- **Context:** Під час консистентного VictoriaMetrics backup сервіс коротко зупиняється, що може створювати шторм alert notifications у Grafana.
+- **Change:** Оновлено `grafana/provisioning/alerting/notification-policies.yml`: додано provisioned mute timing `daily-backup-window` з вікном `00:55`–`01:45` у timezone `Europe/Kyiv`; critical і warning routes тепер посилаються на нього через `mute_time_intervals`. Оператори `object_matchers` взято в лапки як рядки для валідного YAML parse.
+- **Verification:** `grafana/provisioning/alerting/notification-policies.yml` успішно проходить YAML parse через PyYAML. Runtime reload/deploy Grafana не виконувався в межах цієї ітерації.
+- **Risks:** У backup-вікно notifications для `severity=critical` і `severity=warning` не надсилатимуться, але alert evaluation і стан alert instances продовжать працювати.
+- **Rollback:** Видалити `muteTimes.daily-backup-window` і `mute_time_intervals` з routes у `notification-policies.yml`, після чого повторно застосувати Grafana provisioning.
 ## [2026-05-13] — Alert noise hardening for Grafana NoData and Swarm container names
 - **Context:** Періодично надходили `DatasourceNoData`/container alerts, хоча scrape targets і контейнери були `UP`; live VictoriaMetrics queries показали empty vector для healthy `absent_over_time` rules, старий Compose-only cAdvisor regex і невдалий Matomo archiving collector через Swarm task names.
 - **Change:**
