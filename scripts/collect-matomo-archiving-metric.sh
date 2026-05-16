@@ -33,12 +33,40 @@ abs_path() {
   fi
 }
 
+resolve_docker_container_name() {
+  local wanted="$1"
+
+  docker ps --format '{{.Names}}' | awk -v wanted="$wanted" '
+    $0 == wanted {
+      print
+      found = 1
+      exit
+    }
+    index($0, wanted ".1.") == 1 {
+      print
+      found = 1
+      exit
+    }
+    index($0, "_" wanted ".1.") > 0 {
+      print
+      found = 1
+      exit
+    }
+    END {
+      if (!found) {
+        exit 0
+      }
+    }
+  '
+}
+
 NODE_EXPORTER_TEXTFILE_DIR="$(read_env_or_default NODE_EXPORTER_TEXTFILE_DIR "$ENV_FILE" "./.data/node-exporter-textfile")"
 MATOMO_CRON_CONTAINER_NAME="$(read_env_or_default MATOMO_CRON_CONTAINER_NAME "$ENV_FILE" "matomo-cron")"
 TEXTFILE_DIR_ABS="$(abs_path "$NODE_EXPORTER_TEXTFILE_DIR")"
 collect_timestamp="$(date +%s)"
 success_timestamp="0"
 metric_status="0"
+matomo_cron_container="$(resolve_docker_container_name "$MATOMO_CRON_CONTAINER_NAME")"
 
 mkdir -p "$TEXTFILE_DIR_ABS"
 
@@ -65,15 +93,15 @@ EOF
 
 trap 'emit_metrics' EXIT
 
-if ! docker ps --format '{{.Names}}' | grep -qx "$MATOMO_CRON_CONTAINER_NAME"; then
+if [[ -z "$matomo_cron_container" ]]; then
   echo "ERROR: Matomo cron container is not running: $MATOMO_CRON_CONTAINER_NAME"
   exit 1
 fi
 
-last_success_line="$(docker logs --timestamps "$MATOMO_CRON_CONTAINER_NAME" 2>&1 | grep 'Done archiving!' | tail -n1 || true)"
+last_success_line="$(docker logs --timestamps "$matomo_cron_container" 2>&1 | grep 'Done archiving!' | tail -n1 || true)"
 
 if [[ -z "$last_success_line" ]]; then
-  echo "ERROR: Could not find successful 'Done archiving!' marker in $MATOMO_CRON_CONTAINER_NAME logs"
+  echo "ERROR: Could not find successful 'Done archiving!' marker in $matomo_cron_container logs"
   exit 1
 fi
 

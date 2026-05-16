@@ -3,7 +3,7 @@ groups:
     interval: 1m
     rules:
       - alert: TraefikHighErrorRate
-        expr: (sum(rate(traefik_service_requests_total{job="traefik",env="prod",code=~"5.."}[5m])) / sum(rate(traefik_service_requests_total{job="traefik",env="prod"}[5m])) * 100) > 5
+        expr: (((sum(rate(traefik_service_requests_total{job="traefik",env="prod",code=~"5.."}[5m])) or vector(0)) / clamp_min((sum(rate(traefik_service_requests_total{job="traefik",env="prod"}[5m])) or vector(0)), 1)) * 100) > 5
         for: 5m
         labels:
           severity: critical

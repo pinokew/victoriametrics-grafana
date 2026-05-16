@@ -3,7 +3,7 @@ groups:
     interval: 1m
     rules:
       - alert: KohaMariaDBDown
-        expr: absent_over_time(mysql_up{job="mariadb-exporter",env="prod",service="koha",component="db"}[2m]) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+        expr: (max(present_over_time(mysql_up{job="mariadb-exporter",env="prod",service="koha",component="db"}[2m])) or vector(0)) < 1 and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
         for: 2m
         labels:
           severity: critical
@@ -27,7 +27,7 @@ groups:
           runbook: docs/runbooks/database-connections-high.md
 
       - alert: MatomoMariaDBDown
-        expr: absent_over_time(mysql_up{job="matomo-mariadb-exporter",env="prod",service="matomo",component="db"}[2m]) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+        expr: (max(present_over_time(mysql_up{job="matomo-mariadb-exporter",env="prod",service="matomo",component="db"}[2m])) or vector(0)) < 1 and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
         for: 2m
         labels:
           severity: critical
@@ -51,7 +51,7 @@ groups:
           runbook: docs/runbooks/database-connections-high.md
 
       - alert: PostgreSQLDown
-        expr: absent_over_time(pg_up{job="postgres-exporter",env="prod",service="dspace",component="db"}[2m]) and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
+        expr: (max(present_over_time(pg_up{job="postgres-exporter",env="prod",service="dspace",component="db"}[2m])) or vector(0)) < 1 and on() (max(up{job="node-exporter",env="prod",service="host"}) == 1)
         for: 2m
         labels:
           severity: critical
